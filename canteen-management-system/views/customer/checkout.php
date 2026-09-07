@@ -40,7 +40,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $promoCode = strtoupper(trim($_POST['promo_code'] ?? ''));
         $promoClaim = $promoCode ? $promo->findValidForUser($_SESSION['user_id'], $promoCode) : null;
         if ($promoCode && !$promoClaim) {
-            $error = 'That promo code is invalid or does not belong to your account.';
+            $error = 'That promo code is invalid, expired, or has already been used.';
             $step = 'select';
         } else {
             $discountAmount = $promoClaim ? round($subtotal * ((int)$promoClaim['discount_percent'] / 100), 2) : 0;
