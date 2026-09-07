@@ -149,7 +149,10 @@ class StaffWorkspace {
     }
 
     public function updateQueueStatus($orderId, $staffId, $role, $status) {
-        $role = strtolower(trim((string)$role));
+        if (!staffHasRole(['cook', 'waiter', 'cashier'])) {
+            return false;
+        }
+        $role = currentStaffRole();
         $stmt = $this->conn->prepare("SELECT status FROM orders WHERE id = ? LIMIT 1");
         $stmt->execute([(int)$orderId]);
         $current = $stmt->fetchColumn();
@@ -176,6 +179,9 @@ class StaffWorkspace {
     }
 
     public function addDelivery($supplier, $items, $quantity) {
+        if (!staffHasRole(['inventory'])) {
+            return false;
+        }
         $supplier = trim((string)$supplier);
         $items = trim((string)$items);
         $quantity = (int)$quantity;
@@ -188,6 +194,9 @@ class StaffWorkspace {
     }
 
     public function markDeliveryReceived($deliveryId, $staffId) {
+        if (!staffHasRole(['inventory'])) {
+            return false;
+        }
         $stmt = $this->conn->prepare("UPDATE receiving_deliveries SET status = 'received', received_by_staff_id = ?, received_at = NOW() WHERE id = ? AND status = 'pending'");
         return $stmt->execute([(int)$staffId, (int)$deliveryId]);
     }
@@ -208,6 +217,9 @@ class StaffWorkspace {
     }
 
     public function addCost($category, $department, $amount, $date, $notes = '') {
+        if (!staffHasRole(['finance'])) {
+            return false;
+        }
         $amount = (float)$amount;
         if (trim($category) === '' || trim($department) === '' || $amount < 0 || !$date) {
             return false;
