@@ -8,9 +8,60 @@ $database = new Database();
 $db = $database->connect();
 $userModel = new User($db);
 
+if (empty($_SESSION['account_csrf_token'])) {
+    $_SESSION['account_csrf_token'] = bin2hex(random_bytes(32));
+}
+$csrfToken = $_SESSION['account_csrf_token'];
+
+$message = '';
+$messageType = '';
+if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    $submittedToken = $_POST['csrf_token'] ?? '';
+    if (!hash_equals($csrfToken, (string)$submittedToken)) {
+        $message = 'Security token expired. Please refresh and try again.';
+        $messageType = 'error';
+    } elseif (($_POST['action'] ?? '') === 'deactivate_account') {
+        if ($userModel->deactivateAccount((int)($_POST['account_id'] ?? 0))) {
+            flash('success', 'Account deactivated successfully.');
+        } else {
+            flash('error', 'This account cannot be deactivated.');
+        }
+        redirect('views/admin/account_management.php');
+    } elseif (($_POST['action'] ?? '') === 'create_account') {
+        $name = trim($_POST['account_name'] ?? '');
+        $email = trim($_POST['account_email'] ?? '');
+        $password = (string)($_POST['account_password'] ?? '');
+        $role = $_POST['account_role'] ?? '';
+        $phone = trim($_POST['account_phone'] ?? '');
+        $salary = $_POST['account_salary'] ?? 0;
+        $designation = trim($_POST['account_designation'] ?? 'Service Staff');
+        $shift = $_POST['account_shift'] ?? 'Morning';
+        $status = $_POST['account_status'] ?? 'on_duty';
+
+        $validRole = in_array($role, ['admin', 'staff'], true);
+        $validSalary = is_numeric($salary) && (float)$salary >= 0 && (float)$salary <= 1000000;
+        $validPhone = $phone === '' || preg_match('/^(\+?\d{1,3}[-.\s]?)?(\(?\d{2,4}\)?[-.\s]?)?\d{3}[-.\s]?\d{4,6}$/', $phone) === 1;
+
+        if ($name === '' || !filter_var($email, FILTER_VALIDATE_EMAIL) || strlen($password) < 8 || !$validRole || !$validSalary || !$validPhone) {
+            $message = 'Enter a valid name, email, password of at least 8 characters, phone number, and salary.';
+            $messageType = 'error';
+        } elseif ($userModel->findByEmail($email)) {
+            $message = 'An account with this email already exists.';
+            $messageType = 'error';
+        } else {
+            $userModel->create($name, $email, $password, $role, $phone, (float)$salary, $status, $designation, $shift);
+            flash('success', ucfirst($role) . ' account created successfully.');
+            redirect('views/admin/account_management.php');
+        }
+    }
+}
+
+$flashSuccess = flash('success');
+$flashError = flash('error');
+
 $roleFilter = $_GET['role'] ?? 'all';
 $searchTerm = trim($_GET['q'] ?? '');
-if (!in_array($roleFilter, ['all', 'customer', 'staff'], true)) {
+if (!in_array($roleFilter, ['all', 'customer', 'staff', 'admin'], true)) {
     $roleFilter = 'all';
 }
 
@@ -18,6 +69,7 @@ $accounts = $userModel->listActiveAccounts($roleFilter, $searchTerm);
 $totalAccounts = count($userModel->listActiveAccounts());
 $totalCustomers = count($userModel->listActiveAccounts('customer'));
 $totalStaff = count($userModel->listActiveAccounts('staff'));
+$totalAdmins = count($userModel->listActiveAccounts('admin'));
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -36,7 +88,7 @@ $totalStaff = count($userModel->listActiveAccounts('staff'));
                 <h1>Account Management</h1>
                 <p class="muted">View all active customer and staff accounts.</p>
             </div>
-            <a href="<?= BASE_URL ?>/views/admin/staff_management.php" class="btn-primary btn-small">+ Create Staff Account</a>
+            <a href="#createAccount" class="btn-primary btn-small">+ Create Account</a>
         </div>
     </header>
 
@@ -53,6 +105,73 @@ $totalStaff = count($userModel->listActiveAccounts('staff'));
             <span class="muted small">Staff accounts</span>
             <h2><?= $totalStaff ?></h2>
         </div>
+        <div class="stat-card">
+            <span class="muted small">Admin accounts</span>
+            <h2><?= $totalAdmins ?></h2>
+        </div>
+    </div>
+
+    <?php if ($message || $flashSuccess || $flashError): ?>
+        <div class="alert alert-<?= e($messageType ?: ($flashError ? 'error' : 'success')) ?>">
+            <?= e($message ?: $flashSuccess ?: $flashError) ?>
+        </div>
+    <?php endif; ?>
+
+    <div class="card" id="createAccount">
+        <h2>Create admin or staff account</h2>
+        <form method="POST" class="grid-form">
+            <input type="hidden" name="action" value="create_account">
+            <input type="hidden" name="csrf_token" value="<?= e($csrfToken) ?>">
+            <div>
+                <label>Full name</label>
+                <input type="text" name="account_name" required>
+            </div>
+            <div>
+                <label>Email</label>
+                <input type="email" name="account_email" required>
+            </div>
+            <div>
+                <label>Password</label>
+                <input type="password" name="account_password" minlength="8" required>
+            </div>
+            <div>
+                <label>Account type</label>
+                <select name="account_role" required>
+                    <option value="staff">Staff</option>
+                    <option value="admin">Admin</option>
+                </select>
+            </div>
+            <div>
+                <label>Phone</label>
+                <input type="tel" name="account_phone">
+            </div>
+            <div>
+                <label>Monthly salary</label>
+                <input type="number" name="account_salary" min="0" step="0.01" value="0" required>
+            </div>
+            <div>
+                <label>Staff designation</label>
+                <input type="text" name="account_designation" value="Service Staff">
+            </div>
+            <div>
+                <label>Staff shift</label>
+                <select name="account_shift">
+                    <option>Morning</option>
+                    <option>Evening</option>
+                    <option>Night</option>
+                </select>
+            </div>
+            <div>
+                <label>Staff status</label>
+                <select name="account_status">
+                    <option value="on_duty">On Duty</option>
+                    <option value="on_leave">On Leave</option>
+                </select>
+            </div>
+            <div class="full-width">
+                <button type="submit" class="btn-primary">Create Account</button>
+            </div>
+        </form>
     </div>
 
     <div class="card">
@@ -67,6 +186,7 @@ $totalStaff = count($userModel->listActiveAccounts('staff'));
                     <option value="all" <?= $roleFilter === 'all' ? 'selected' : '' ?>>All accounts</option>
                     <option value="customer" <?= $roleFilter === 'customer' ? 'selected' : '' ?>>Customers</option>
                     <option value="staff" <?= $roleFilter === 'staff' ? 'selected' : '' ?>>Staff</option>
+                    <option value="admin" <?= $roleFilter === 'admin' ? 'selected' : '' ?>>Admins</option>
                 </select>
                 <button type="submit" class="btn-primary btn-small">Filter</button>
             </form>
@@ -82,6 +202,7 @@ $totalStaff = count($userModel->listActiveAccounts('staff'));
                     <th>Account Status</th>
                     <th>Last Login</th>
                     <th>Created</th>
+                    <th>Action</th>
                 </tr>
             </thead>
             <tbody>
@@ -105,10 +226,18 @@ $totalStaff = count($userModel->listActiveAccounts('staff'));
                     <td><span class="status-pill <?= $statusClass ?>"><?= e($statusLabel) ?></span></td>
                     <td><?= $account['last_login_at'] ? date('M d, Y g:i A', strtotime($account['last_login_at'])) : 'Never' ?></td>
                     <td><?= date('M d, Y', strtotime($account['created_at'])) ?></td>
+                    <td>
+                        <form method="POST" onsubmit="return confirm('Deactivate this account?');">
+                            <input type="hidden" name="action" value="deactivate_account">
+                            <input type="hidden" name="account_id" value="<?= (int)$account['id'] ?>">
+                            <input type="hidden" name="csrf_token" value="<?= e($csrfToken) ?>">
+                            <button type="submit" class="btn-small btn-cancel">Deactivate</button>
+                        </form>
+                    </td>
                 </tr>
             <?php endforeach; ?>
             <?php if (empty($accounts)): ?>
-                <tr><td colspan="7" class="muted center">No active accounts found.</td></tr>
+                <tr><td colspan="8" class="muted center">No active accounts found.</td></tr>
             <?php endif; ?>
             </tbody>
         </table>
