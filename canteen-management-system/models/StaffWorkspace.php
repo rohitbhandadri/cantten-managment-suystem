@@ -53,6 +53,17 @@ class StaffWorkspace {
             notes VARCHAR(255) DEFAULT NULL,
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         )");
+        $this->conn->exec("CREATE TABLE IF NOT EXISTS cashier_transactions (
+            id INT AUTO_INCREMENT PRIMARY KEY,
+            order_id INT NOT NULL UNIQUE,
+            cashier_staff_id INT NOT NULL,
+            amount DECIMAL(10,2) NOT NULL,
+            payment_method ENUM('cash','card') NOT NULL,
+            status ENUM('paid','refunded') NOT NULL DEFAULT 'paid',
+            paid_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (order_id) REFERENCES orders(id) ON DELETE CASCADE,
+            FOREIGN KEY (cashier_staff_id) REFERENCES staff_management(id) ON DELETE RESTRICT
+        )");
     }
 
     public function currentStaff($userId) {
@@ -146,6 +157,85 @@ class StaffWorkspace {
         $stmt->bindValue(1, max(1, (int)$limit), PDO::PARAM_INT);
         $stmt->execute();
         return $stmt->fetchAll(PDO::FETCH_ASSOC);
+    }
+
+    public function stockLevels($limit = 100) {
+        $stmt = $this->conn->prepare("SELECT mi.id, mi.name, mi.current_stock, mi.reorder_level, c.name AS category_name
+            FROM menu_items mi LEFT JOIN categories c ON c.id = mi.category_id
+            WHERE mi.is_active = 1 ORDER BY mi.current_stock ASC, mi.name ASC LIMIT ?");
+        $stmt->bindValue(1, max(1, (int)$limit), PDO::PARAM_INT);
+        $stmt->execute();
+        return $stmt->fetchAll(PDO::FETCH_ASSOC);
+    }
+
+    public function cashierOrders($limit = 50) {
+        if (!staffHasRole(['cashier'])) {
+            return [];
+        }
+        $stmt = $this->conn->prepare("SELECT o.id, o.order_number, o.table_number, o.status, o.total_amount, o.order_at,
+            (SELECT GROUP_CONCAT(CONCAT(oi.quantity, ' x ', mi.name) ORDER BY mi.name SEPARATOR ', ')
+                FROM order_items oi INNER JOIN menu_items mi ON mi.id = oi.menu_item_id WHERE oi.order_id = o.id) AS item_summary
+            FROM orders o LEFT JOIN cashier_transactions ct ON ct.order_id = o.id AND ct.status = 'paid'
+            WHERE o.status IN ('pending', 'preparing', 'ready') AND ct.id IS NULL
+            ORDER BY o.order_at ASC LIMIT ?");
+        $stmt->bindValue(1, max(1, (int)$limit), PDO::PARAM_INT);
+        $stmt->execute();
+        return $stmt->fetchAll(PDO::FETCH_ASSOC);
+    }
+
+    public function finalizeCashierBill($orderId, $paymentMethod, $cashierStaffId) {
+        if (!staffHasRole(['cashier']) || !in_array($paymentMethod, ['cash', 'card'], true)) {
+            return false;
+        }
+        $this->conn->beginTransaction();
+        try {
+            $stmt = $this->conn->prepare("SELECT id, total_amount, status FROM orders WHERE id = ? FOR UPDATE");
+            $stmt->execute([(int)$orderId]);
+            $order = $stmt->fetch(PDO::FETCH_ASSOC);
+            if (!$order || $order['status'] === 'cancelled' || $order['status'] === 'completed') {
+                $this->conn->rollBack();
+                return false;
+            }
+            $insert = $this->conn->prepare("INSERT INTO cashier_transactions (order_id, cashier_staff_id, amount, payment_method) VALUES (?, ?, ?, ?)");
+            $insert->execute([(int)$order['id'], (int)$cashierStaffId, (float)$order['total_amount'], $paymentMethod]);
+            $update = $this->conn->prepare("UPDATE orders SET status = 'completed', served_by_staff_id = ? WHERE id = ? AND status IN ('pending', 'preparing', 'ready')");
+            $update->execute([(int)$cashierStaffId, (int)$order['id']]);
+            if ($update->rowCount() !== 1) {
+                $this->conn->rollBack();
+                return false;
+            }
+            $this->conn->commit();
+            return true;
+        } catch (Throwable $exception) {
+            if ($this->conn->inTransaction()) {
+                $this->conn->rollBack();
+            }
+            return false;
+        }
+    }
+
+    public function cashierTransactionsToday() {
+        if (!staffHasRole(['cashier', 'finance'])) {
+            return [];
+        }
+        $stmt = $this->conn->prepare("SELECT ct.*, o.order_number, o.table_number
+            FROM cashier_transactions ct INNER JOIN orders o ON o.id = ct.order_id
+            WHERE ct.status = 'paid' AND DATE(ct.paid_at) = CURDATE() ORDER BY ct.paid_at DESC");
+        $stmt->execute();
+        return $stmt->fetchAll(PDO::FETCH_ASSOC);
+    }
+
+    public function cashierReconciliation() {
+        if (!staffHasRole(['cashier', 'finance'])) {
+            return ['cash' => 0, 'card' => 0, 'system_total' => 0];
+        }
+        $stmt = $this->conn->query("SELECT payment_method, COALESCE(SUM(amount), 0) AS total FROM cashier_transactions WHERE status = 'paid' AND DATE(paid_at) = CURDATE() GROUP BY payment_method");
+        $summary = ['cash' => 0, 'card' => 0, 'system_total' => 0];
+        foreach ($stmt->fetchAll(PDO::FETCH_ASSOC) as $row) {
+            $summary[$row['payment_method']] = (float)$row['total'];
+        }
+        $summary['system_total'] = $summary['cash'] + $summary['card'];
+        return $summary;
     }
 
     public function updateQueueStatus($orderId, $staffId, $role, $status) {
