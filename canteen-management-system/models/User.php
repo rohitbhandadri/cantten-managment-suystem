@@ -8,6 +8,7 @@ class User {
     public function __construct($db) {
         $this->conn = $db;
         $this->ensureUserCredentialsSchema();
+        $this->ensureUserRoleSchema();
         $this->ensureStaffTableSchema();
     }
 
@@ -44,6 +45,21 @@ class User {
             } catch (PDOException $e) {
                 // Ignore drift errors for older local schemas.
             }
+        }
+    }
+
+    private function ensureUserRoleSchema() {
+        $check = $this->conn->prepare("SELECT column_type FROM information_schema.columns WHERE table_schema = DATABASE() AND table_name = 'users' AND column_name = 'role'");
+        $check->execute();
+        $columnType = strtolower((string)$check->fetchColumn());
+
+        if ($columnType === '') {
+            $this->conn->exec("ALTER TABLE users ADD COLUMN role ENUM('customer','admin','staff') NOT NULL DEFAULT 'customer' AFTER password_hash");
+            return;
+        }
+
+        if (strpos($columnType, "'staff'") === false) {
+            $this->conn->exec("ALTER TABLE users MODIFY COLUMN role ENUM('customer','admin','staff') NOT NULL DEFAULT 'customer'");
         }
     }
 
