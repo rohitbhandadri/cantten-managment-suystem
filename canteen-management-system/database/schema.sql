@@ -26,6 +26,8 @@ CREATE TABLE staff_management (
     staff_shift ENUM('Morning','Evening','Night') NOT NULL DEFAULT 'Morning',
     staff_salary DECIMAL(10,2) NOT NULL DEFAULT 0,
     staff_status ENUM('on_duty','on_leave','removed') NOT NULL DEFAULT 'on_duty',
+    is_active TINYINT(1) NOT NULL DEFAULT 1,
+    deleted_at DATETIME NULL,
     performance_rating DECIMAL(3,2) NOT NULL DEFAULT 0,
     rating_count INT NOT NULL DEFAULT 0,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
