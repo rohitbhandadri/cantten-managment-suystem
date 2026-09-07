@@ -264,7 +264,7 @@ class User {
                 WHERE u.is_active = 1 AND u.status != 'removed'";
         $params = [];
 
-        if (in_array($role, ['customer', 'staff'], true)) {
+        if (in_array($role, ['customer', 'staff', 'admin'], true)) {
             $sql .= " AND u.role = ?";
             $params[] = $role;
         }
@@ -340,5 +340,38 @@ class User {
             $userStmt->execute([$staff['staff_email']]);
         }
         return $deleted;
+    }
+
+    public function deactivateAccount($id) {
+        $account = $this->findById((int)$id);
+        if (!$account || (int)$account['id'] === (int)($_SESSION['user_id'] ?? 0)) {
+            return false;
+        }
+
+        $startedTransaction = !$this->conn->inTransaction();
+        if ($startedTransaction) {
+            $this->conn->beginTransaction();
+        }
+
+        try {
+            $stmt = $this->conn->prepare("UPDATE users SET is_active = 0, status = 'removed' WHERE id = ?");
+            $updated = $stmt->execute([(int)$id]);
+
+            if ($account['role'] === 'staff') {
+                $staffStmt = $this->conn->prepare("UPDATE staff_management SET is_active = 0, deleted_at = NOW(), staff_status = 'removed' WHERE staff_email = ? AND is_active = 1");
+                $staffStmt->execute([$account['email']]);
+            }
+
+            if ($startedTransaction) {
+                $this->conn->commit();
+            }
+
+            return $updated;
+        } catch (Throwable $exception) {
+            if ($startedTransaction && $this->conn->inTransaction()) {
+                $this->conn->rollBack();
+            }
+            throw $exception;
+        }
     }
 }
