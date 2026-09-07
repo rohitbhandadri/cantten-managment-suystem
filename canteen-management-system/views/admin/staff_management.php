@@ -41,23 +41,23 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $name = trim($_POST['add_staff_name'] ?? '');
         $email = trim($_POST['add_staff_email'] ?? '');
         $salary = $_POST['add_staff_salary'] ?? 0;
+        $password = (string)($_POST['add_staff_password'] ?? '');
         $role = trim($_POST['add_staff_role'] ?? 'Service Staff');
         $phone = trim($_POST['add_staff_phone'] ?? '');
         $shift = trim($_POST['add_staff_shift'] ?? 'Morning');
         $status = $_POST['add_staff_status'] ?? 'on_duty';
 
-        if ($name === '' || !validateEmailAddress($email) || !validateSalary($salary) || !validatePhoneNumber($phone)) {
-            $response['message'] = 'Please provide a valid name, email, phone number, and monthly salary.';
+        if ($name === '' || !validateEmailAddress($email) || strlen($password) < 8 || !validateSalary($salary) || !validatePhoneNumber($phone)) {
+            $response['message'] = 'Please provide a valid name, email, password (at least 8 characters), phone number, and monthly salary.';
         } elseif ($userModel->findByEmail($email)) {
             $response['message'] = 'A staff member with this email already exists.';
         } else {
-            $temporaryPassword = 'staff' . random_int(1000, 9999);
-            $userModel->create($name, $email, $temporaryPassword, 'staff', $phone, (float)$salary, $status, $role, $shift);
+            $userModel->create($name, $email, $password, 'staff', $phone, (float)$salary, $status, $role, $shift);
             $createdUser = $userModel->findByEmail($email);
             $response = [
                 'success' => true,
                 'username' => $createdUser['username'] ?? $email,
-                'message' => 'Staff member added successfully. Login ID: ' . ($createdUser['username'] ?? $email) . ' | Temporary password: ' . $temporaryPassword,
+                'message' => 'Staff member added successfully. Login ID: ' . ($createdUser['username'] ?? $email) . '.',
             ];
         }
 
@@ -304,6 +304,10 @@ $staffShifts = ['Morning', 'Evening', 'Night'];
             <div>
                 <label>Email</label>
                 <input type="email" name="add_staff_email" required>
+            </div>
+            <div>
+                <label>Password</label>
+                <input type="password" name="add_staff_password" minlength="8" required autocomplete="new-password">
             </div>
             <div>
                 <label>Role / Designation</label>
@@ -620,9 +624,10 @@ $staffShifts = ['Morning', 'Evening', 'Night'];
         const email = (formData.get(type === 'add' ? 'add_staff_email' : 'edit_staff_email') || '').toString().trim();
         const salary = (formData.get(type === 'add' ? 'add_staff_salary' : 'edit_staff_salary') || '').toString();
         const phone = (formData.get(type === 'add' ? 'add_staff_phone' : 'edit_staff_phone') || '').toString().trim();
+        const password = (formData.get('add_staff_password') || '').toString();
 
-        if (!name || !validateEmail(email) || !validateSalary(salary) || !validatePhone(phone)) {
-            const message = 'Please enter valid staff name, email, phone number, and monthly salary.';
+        if (!name || !validateEmail(email) || (type === 'add' && password.length < 8) || !validateSalary(salary) || !validatePhone(phone)) {
+            const message = 'Please enter a valid name, email, password (at least 8 characters), phone number, and monthly salary.';
             if (type === 'add') {
                 showMessage(addStaffMessage, 'error', message);
             }
