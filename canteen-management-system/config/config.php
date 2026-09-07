@@ -61,7 +61,17 @@ function staffHasRole($roles) {
 }
 
 function staffDashboardPath() {
-    return isAdmin() ? 'views/admin/dashboard.php' : 'views/staff/dashboard.php';
+    if (isAdmin()) {
+        return 'views/admin/dashboard.php';
+    }
+    $paths = [
+        'cashier' => 'views/staff/cashier.php',
+        'cook' => 'views/staff/chef.php',
+        'waiter' => 'views/staff/waiter.php',
+        'inventory' => 'views/staff/inventory.php',
+        'finance' => 'views/staff/finance.php',
+    ];
+    return $paths[currentStaffRole()] ?? 'views/staff/dashboard.php';
 }
 
 function requireLogin() {
