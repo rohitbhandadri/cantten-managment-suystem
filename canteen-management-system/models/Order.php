@@ -37,8 +37,27 @@ class Order {
     }
 
     public function updateStatus($id, $status) {
+        $allowedStatuses = ['pending', 'preparing', 'ready', 'completed', 'cancelled'];
+        if (!in_array($status, $allowedStatuses, true)) {
+            return false;
+        }
+
+        $stmt = $this->conn->prepare("SELECT status FROM {$this->table} WHERE id = ?");
+        $stmt->execute([$id]);
+        $currentStatus = $stmt->fetchColumn();
+        $transitions = [
+            'pending' => ['pending', 'preparing', 'cancelled'],
+            'preparing' => ['preparing', 'ready', 'cancelled'],
+            'ready' => ['ready', 'completed'],
+            'completed' => ['completed'],
+            'cancelled' => ['cancelled'],
+        ];
+        if (!$currentStatus || !in_array($status, $transitions[$currentStatus], true)) {
+            return false;
+        }
+
         $stmt = $this->conn->prepare("UPDATE {$this->table} SET status = ? WHERE id = ?");
-        $stmt->execute([$status, $id]);
+        return $stmt->execute([$status, $id]);
     }
 
     public function todayStats() {

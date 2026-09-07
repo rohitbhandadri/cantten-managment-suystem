@@ -21,11 +21,48 @@ class Reservation {
     }
 
     public function create($userId, $tableId, $date, $start, $end, $guests) {
-        $stmt = $this->conn->prepare("INSERT INTO {$this->table}
-            (user_id, table_id, reservation_date, start_time, end_time, guests, status)
+        $dateValue = DateTime::createFromFormat('!Y-m-d', $date);
+        $startValue = DateTime::createFromFormat('!H:i:s', $start) ?: DateTime::createFromFormat('!H:i', $start);
+        $endValue = DateTime::createFromFormat('!H:i:s', $end) ?: DateTime::createFromFormat('!H:i', $end);
+        if (!$dateValue || !$startValue || !$endValue || $dateValue->format('Y-m-d') !== $date || $endValue <= $startValue || (int)$guests < 1 || $dateValue < new DateTime('today')) {
+            return false;
+        }
+
+        $startTime = $startValue->format('H:i:s');
+        $endTime = $endValue->format('H:i:s');
+        $guests = (int)$guests;
+        $this->conn->beginTransaction();
+        try {
+            $stmt = $this->conn->prepare("SELECT capacity FROM tables_ WHERE id = ? AND is_active = 1 FOR UPDATE");
+            $stmt->execute([$tableId]);
+            $capacity = $stmt->fetchColumn();
+            if ($capacity === false || $guests > (int)$capacity) {
+                $this->conn->rollBack();
+                return false;
+            }
+
+            $stmt = $this->conn->prepare("SELECT id FROM {$this->table}
+                WHERE table_id = ? AND reservation_date = ? AND status IN ('pending', 'confirmed')
+                AND start_time < ? AND end_time > ? LIMIT 1");
+            $stmt->execute([$tableId, $date, $endTime, $startTime]);
+            if ($stmt->fetchColumn()) {
+                $this->conn->rollBack();
+                return false;
+            }
+
+            $stmt = $this->conn->prepare("INSERT INTO {$this->table}
+                (user_id, table_id, reservation_date, start_time, end_time, guests, status)
                 VALUES (?, ?, ?, ?, ?, ?, 'pending')");
-        $stmt->execute([$userId, $tableId, $date, $start, $end, $guests]);
-        return $this->conn->lastInsertId();
+            $stmt->execute([$userId, $tableId, $date, $startTime, $endTime, $guests]);
+            $reservationId = $this->conn->lastInsertId();
+            $this->conn->commit();
+            return $reservationId;
+        } catch (Exception $e) {
+            if ($this->conn->inTransaction()) {
+                $this->conn->rollBack();
+            }
+            return false;
+        }
     }
 
     public function findByUser($userId) {
@@ -57,8 +94,9 @@ class Reservation {
 
     public function reservedTableIds($date, $time) {
         $stmt = $this->conn->prepare("SELECT table_id FROM {$this->table}
-            WHERE reservation_date = ? AND status IN ('pending', 'confirmed') AND ? BETWEEN start_time AND end_time");
-            $stmt->execute([$date, $time]);
+            WHERE reservation_date = ? AND status IN ('pending', 'confirmed')
+            AND start_time < ADDTIME(?, '01:00:00') AND end_time > ?");
+            $stmt->execute([$date, $time, $time]);
         return $stmt->fetchAll(PDO::FETCH_COLUMN);
     }
 }

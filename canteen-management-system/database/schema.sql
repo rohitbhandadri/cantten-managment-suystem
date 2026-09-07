@@ -33,19 +33,6 @@ CREATE TABLE staff_management (
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
-CREATE TABLE staff_ratings (
-    id INT AUTO_INCREMENT PRIMARY KEY,
-    staff_id INT NOT NULL,
-    customer_id INT NOT NULL,
-    order_id INT NULL,
-    rating TINYINT UNSIGNED NOT NULL,
-    comment TEXT NULL,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    FOREIGN KEY (staff_id) REFERENCES staff_management(id) ON DELETE CASCADE,
-    FOREIGN KEY (customer_id) REFERENCES users(id) ON DELETE CASCADE,
-    FOREIGN KEY (order_id) REFERENCES orders(id) ON DELETE SET NULL
-);
-
 CREATE TABLE categories (
     id INT AUTO_INCREMENT PRIMARY KEY,
     name VARCHAR(100) NOT NULL
@@ -124,6 +111,20 @@ CREATE TABLE payments (
     amount DECIMAL(10,2) NOT NULL,
     paid_at DATETIME NULL,
     FOREIGN KEY (order_id) REFERENCES orders(id) ON DELETE CASCADE
+);
+
+CREATE TABLE staff_ratings (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    staff_id INT NOT NULL,
+    customer_id INT NOT NULL,
+    order_id INT NULL,
+    rating TINYINT UNSIGNED NOT NULL,
+    comment TEXT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE KEY unique_order_rating (customer_id, order_id),
+    FOREIGN KEY (staff_id) REFERENCES staff_management(id) ON DELETE CASCADE,
+    FOREIGN KEY (customer_id) REFERENCES users(id) ON DELETE CASCADE,
+    FOREIGN KEY (order_id) REFERENCES orders(id) ON DELETE SET NULL
 );
 
 CREATE TABLE inventory_logs (

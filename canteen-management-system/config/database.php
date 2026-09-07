@@ -1,10 +1,17 @@
 <?php
 class Database {
-    private $host = "localhost";
-    private $db_name = "canteen_db";
-    private $username = "root";
-    private $password = ""; // change if your MySQL has a password
+    private $host;
+    private $db_name;
+    private $username;
+    private $password;
     public $conn;
+
+    public function __construct() {
+        $this->host = getenv('CANTEEN_DB_HOST') ?: 'localhost';
+        $this->db_name = getenv('CANTEEN_DB_NAME') ?: 'canteen_db';
+        $this->username = getenv('CANTEEN_DB_USER') ?: 'root';
+        $this->password = getenv('CANTEEN_DB_PASSWORD') ?: '';
+    }
 
     public function connect() {
         $this->conn = null;
@@ -16,7 +23,8 @@ class Database {
             );
             $this->conn->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
         } catch (PDOException $e) {
-            die("Connection error: " . $e->getMessage());
+            error_log('Canteen database connection failed: ' . $e->getMessage());
+            die('The application is temporarily unavailable. Please try again later.');
         }
         return $this->conn;
     }

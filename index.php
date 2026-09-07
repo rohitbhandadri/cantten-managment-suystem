@@ -1,2 +1,3 @@
 <?php
-require_once __DIR__ . '/canteen-management-system/index.php';
+header('Location: canteen-management-system/index.php');
+exit();

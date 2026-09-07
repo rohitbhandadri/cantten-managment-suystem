@@ -60,8 +60,10 @@ class MenuItem {
     }
 
     public function reduceStock($id, $qty) {
-        $stmt = $this->conn->prepare("UPDATE {$this->table} SET current_stock = current_stock - ? WHERE id = ?");
-        $stmt->execute([$qty, $id]);
+        $stmt = $this->conn->prepare("UPDATE {$this->table} SET current_stock = current_stock - ?
+            WHERE id = ? AND current_stock >= ?");
+        $stmt->execute([$qty, $id, $qty]);
+        return $stmt->rowCount() === 1;
     }
 
     public function counts() {

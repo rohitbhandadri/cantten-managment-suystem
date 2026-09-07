@@ -19,6 +19,7 @@ class AuthController {
         if ($user['role'] !== $expectedRole) {
             return ['success' => false, 'message' => "This account is not registered as $expectedRole."];
         }
+        session_regenerate_id(true);
         $_SESSION['user_id'] = $user['id'];
         $_SESSION['name'] = $user['name'];
         $_SESSION['role'] = $user['role'];

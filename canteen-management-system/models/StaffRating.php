@@ -16,6 +16,7 @@ class StaffRating {
                 rating TINYINT UNSIGNED NOT NULL,
                 comment TEXT NULL,
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                UNIQUE KEY unique_order_rating (customer_id, order_id),
                 FOREIGN KEY (staff_id) REFERENCES staff_management(id) ON DELETE CASCADE,
                 FOREIGN KEY (customer_id) REFERENCES users(id) ON DELETE CASCADE,
                 FOREIGN KEY (order_id) REFERENCES orders(id) ON DELETE SET NULL
@@ -27,6 +28,21 @@ class StaffRating {
         $this->ensureTable();
         $rating = max(1, min(5, (int)$rating));
         $comment = trim((string)$comment);
+
+        $stmt = $this->conn->prepare("SELECT o.id FROM orders o
+            INNER JOIN payments p ON p.order_id = o.id
+            INNER JOIN staff_management sm ON sm.id = ? AND sm.is_active = 1 AND sm.staff_status <> 'removed'
+            WHERE o.id = ? AND o.user_id = ? AND p.status = 'success' AND o.status <> 'cancelled'");
+        $stmt->execute([$staffId, $orderId, $customerId]);
+        if (!$stmt->fetchColumn()) {
+            return false;
+        }
+
+        $stmt = $this->conn->prepare("SELECT id FROM staff_ratings WHERE customer_id = ? AND order_id = ? LIMIT 1");
+        $stmt->execute([$customerId, $orderId]);
+        if ($stmt->fetchColumn()) {
+            return false;
+        }
 
         $stmt = $this->conn->prepare("INSERT INTO staff_ratings (staff_id, customer_id, order_id, rating, comment) VALUES (?, ?, ?, ?, ?)");
         $stmt->execute([$staffId, $customerId, $orderId, $rating, $comment]);

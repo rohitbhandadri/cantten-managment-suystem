@@ -13,11 +13,13 @@ class Payment {
         return $this->conn->lastInsertId();
     }
 
-    public function markSuccess($id) {
+    public function markSuccess($id, $orderId) {
         $ref = 'TXN' . strtoupper(bin2hex(random_bytes(4)));
-        $stmt = $this->conn->prepare("UPDATE {$this->table} SET status = 'success', transaction_ref = ?, paid_at = NOW() WHERE id = ?");
-        $stmt->execute([$ref, $id]);
-        return $ref;
+        $stmt = $this->conn->prepare("UPDATE {$this->table}
+            SET status = 'success', transaction_ref = ?, paid_at = NOW()
+            WHERE id = ? AND order_id = ? AND status = 'pending'");
+        $stmt->execute([$ref, $id, $orderId]);
+        return $stmt->rowCount() === 1 ? $ref : false;
     }
 
     public function findByOrder($orderId) {

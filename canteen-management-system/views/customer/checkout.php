@@ -60,36 +60,41 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         // Step 2: verify OTP and confirm payment
         $entered = trim($_POST['otp'] ?? '');
         if ($entered === $_SESSION['checkout_otp']) {
-            $paymentController->confirm($_SESSION['checkout_payment_id'], $_SESSION['checkout_order_id']);
-            $orderId = $_SESSION['checkout_order_id'];
-            $cart->clear();
-            unset($_SESSION['checkout_order_id'], $_SESSION['checkout_payment_id'], $_SESSION['checkout_otp'], $_SESSION['checkout_promo_code']);
+            $paymentReference = $paymentController->confirm($_SESSION['checkout_payment_id'], $_SESSION['checkout_order_id']);
+            if (!$paymentReference) {
+                $error = 'This payment session is invalid or has already been completed.';
+                $step = 'verify';
+            } else {
+                $orderId = $_SESSION['checkout_order_id'];
+                $cart->clear();
+                unset($_SESSION['checkout_order_id'], $_SESSION['checkout_payment_id'], $_SESSION['checkout_otp'], $_SESSION['checkout_promo_code']);
 
-            $staffId = isset($_POST['staff_id']) ? (int)$_POST['staff_id'] : 0;
-            $rating = isset($_POST['staff_rating']) ? (int)$_POST['staff_rating'] : 0;
-            $comment = trim((string)($_POST['staff_comment'] ?? ''));
+                $staffId = isset($_POST['staff_id']) ? (int)$_POST['staff_id'] : 0;
+                $rating = isset($_POST['staff_rating']) ? (int)$_POST['staff_rating'] : 0;
+                $comment = trim((string)($_POST['staff_comment'] ?? ''));
 
-            if ($staffId > 0 && $rating >= 1 && $rating <= 5) {
-                $staffRatingModel->add($staffId, $_SESSION['user_id'], $orderId, $rating, $comment);
+                if ($staffId > 0 && $rating >= 1 && $rating <= 5) {
+                    $ratingId = $staffRatingModel->add($staffId, $_SESSION['user_id'], $orderId, $rating, $comment);
 
-                $perfColumnExists = (bool)$db->query("SELECT COUNT(*) FROM information_schema.columns WHERE table_schema = 'canteen_db' AND table_name = 'staff_management' AND column_name = 'performance_rating'")->fetchColumn();
-                $countColumnExists = (bool)$db->query("SELECT COUNT(*) FROM information_schema.columns WHERE table_schema = 'canteen_db' AND table_name = 'staff_management' AND column_name = 'rating_count'")->fetchColumn();
+                    $perfColumnExists = (bool)$db->query("SELECT COUNT(*) FROM information_schema.columns WHERE table_schema = 'canteen_db' AND table_name = 'staff_management' AND column_name = 'performance_rating'")->fetchColumn();
+                    $countColumnExists = (bool)$db->query("SELECT COUNT(*) FROM information_schema.columns WHERE table_schema = 'canteen_db' AND table_name = 'staff_management' AND column_name = 'rating_count'")->fetchColumn();
 
-                if ($perfColumnExists && $countColumnExists) {
-                    $stmt = $db->prepare("SELECT performance_rating, rating_count FROM staff_management WHERE id = ?");
-                    $stmt->execute([$staffId]);
-                    $staffRow = $stmt->fetch(PDO::FETCH_ASSOC);
-                    if ($staffRow) {
-                        $newCount = (int)$staffRow['rating_count'] + 1;
-                        $newAverage = ((float)$staffRow['performance_rating'] * (int)$staffRow['rating_count'] + $rating) / $newCount;
-                        $bonus = $newAverage >= 4.5 ? 200 : ($newAverage >= 4.0 ? 100 : 0);
-                        $db->prepare("UPDATE staff_management SET performance_rating = ?, rating_count = ?, staff_salary = staff_salary + ? WHERE id = ?")
-                            ->execute([$newAverage, $newCount, $bonus, $staffId]);
+                    if ($ratingId && $perfColumnExists && $countColumnExists) {
+                        $stmt = $db->prepare("SELECT performance_rating, rating_count FROM staff_management WHERE id = ?");
+                        $stmt->execute([$staffId]);
+                        $staffRow = $stmt->fetch(PDO::FETCH_ASSOC);
+                        if ($staffRow) {
+                            $newCount = (int)$staffRow['rating_count'] + 1;
+                            $newAverage = ((float)$staffRow['performance_rating'] * (int)$staffRow['rating_count'] + $rating) / $newCount;
+                            $bonus = $newAverage >= 4.5 ? 200 : ($newAverage >= 4.0 ? 100 : 0);
+                            $db->prepare("UPDATE staff_management SET performance_rating = ?, rating_count = ?, staff_salary = staff_salary + ? WHERE id = ?")
+                                ->execute([$newAverage, $newCount, $bonus, $staffId]);
+                        }
                     }
                 }
-            }
 
-            redirect('views/customer/order_tracking.php?id=' . $orderId);
+                redirect('views/customer/order_tracking.php?id=' . $orderId);
+            }
         } else {
             $error = 'Incorrect OTP. Please try again.';
             $step = 'verify';

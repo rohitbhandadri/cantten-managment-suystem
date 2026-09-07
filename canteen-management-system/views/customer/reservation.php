@@ -18,9 +18,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $time = $_POST['time'];
     $guests = (int)$_POST['guests'];
     if (isset($_POST['confirm']) && !empty($_POST['table_id'])) {
-        $reservationController->book($_SESSION['user_id'], (int)$_POST['table_id'], $date, $time, $guests);
-        flash('success', 'Table reserved successfully!');
-        redirect('views/customer/profile.php');
+        if ($reservationController->book($_SESSION['user_id'], (int)$_POST['table_id'], $date, $time, $guests)) {
+            flash('success', 'Table reserved successfully!');
+            redirect('views/customer/profile.php');
+        }
+        $message = 'That table is unavailable, too small, or the reservation details are invalid.';
     }
 }
 

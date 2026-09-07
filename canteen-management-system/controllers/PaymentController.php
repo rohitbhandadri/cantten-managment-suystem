@@ -17,7 +17,10 @@ class PaymentController {
 
     // Simulates OTP-verified payment confirmation (as in the base paper's OTP verification flow)
     public function confirm($paymentId, $orderId) {
-        $ref = $this->paymentModel->markSuccess($paymentId);
+        $ref = $this->paymentModel->markSuccess($paymentId, $orderId);
+        if (!$ref) {
+            return false;
+        }
         $this->orderModel->updateStatus($orderId, 'preparing');
         return $ref;
     }
