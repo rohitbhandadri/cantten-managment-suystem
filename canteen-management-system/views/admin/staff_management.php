@@ -162,7 +162,7 @@ $filteredStaff = array_values(array_filter($staffMembers, function ($staff) use 
 $onDuty = $userModel->countStaffByStatus('on_duty');
 $onLeave = $userModel->countStaffByStatus('on_leave');
 $totalMonthlyPayroll = $userModel->getTotalMonthlyPayroll();
-$staffRoles = ['Chef', 'Cook', 'Waiter', 'Cashier', 'Inventory Manager', 'Finance', 'Cleaner', 'Service Staff'];
+$staffRoles = ['Manager', 'Chef', 'Cook', 'Waiter', 'Cashier', 'Inventory Manager', 'Finance', 'Cleaner', 'Service Staff'];
 $staffDepartments = ['Operations', 'Inventory', 'Finance'];
 $staffShifts = ['Morning', 'Evening', 'Night'];
 ?>
