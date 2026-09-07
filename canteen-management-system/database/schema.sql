@@ -185,6 +185,18 @@ CREATE TABLE operating_costs (
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
+CREATE TABLE cashier_transactions (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    order_id INT NOT NULL UNIQUE,
+    cashier_staff_id INT NOT NULL,
+    amount DECIMAL(10,2) NOT NULL,
+    payment_method ENUM('cash','card') NOT NULL,
+    status ENUM('paid','refunded') NOT NULL DEFAULT 'paid',
+    paid_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (order_id) REFERENCES orders(id) ON DELETE CASCADE,
+    FOREIGN KEY (cashier_staff_id) REFERENCES staff_management(id) ON DELETE RESTRICT
+);
+
 -- Seed data
 INSERT INTO users (name, email, username, password_hash, role) VALUES
 ('Admin Central', 'admin@canteenpro.com', 'admincentral', '$2y$10$3otWoTSyvjc5qLYqwTsJfOLYtKeVUF2FTCWNToBUtR9rK1LABRXT6', 'admin');
