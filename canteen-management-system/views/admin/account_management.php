@@ -9,11 +9,12 @@ $db = $database->connect();
 $userModel = new User($db);
 
 $roleFilter = $_GET['role'] ?? 'all';
+$searchTerm = trim($_GET['q'] ?? '');
 if (!in_array($roleFilter, ['all', 'customer', 'staff'], true)) {
     $roleFilter = 'all';
 }
 
-$accounts = $userModel->listActiveAccounts($roleFilter);
+$accounts = $userModel->listActiveAccounts($roleFilter, $searchTerm);
 $totalAccounts = count($userModel->listActiveAccounts());
 $totalCustomers = count($userModel->listActiveAccounts('customer'));
 $totalStaff = count($userModel->listActiveAccounts('staff'));
@@ -61,6 +62,7 @@ $totalStaff = count($userModel->listActiveAccounts('staff'));
                 <p class="muted small">Staff accounts are created and managed from Staff Accounts.</p>
             </div>
             <form method="GET" class="staff-filter-bar">
+                <input type="search" name="q" value="<?= e($searchTerm) ?>" placeholder="Search name, email, or login ID" aria-label="Search accounts">
                 <select name="role" aria-label="Filter accounts by role">
                     <option value="all" <?= $roleFilter === 'all' ? 'selected' : '' ?>>All accounts</option>
                     <option value="customer" <?= $roleFilter === 'customer' ? 'selected' : '' ?>>Customers</option>
