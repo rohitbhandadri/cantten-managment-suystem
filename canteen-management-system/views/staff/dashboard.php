@@ -20,15 +20,19 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['order_id'], $_POST['s
 }
 
 $orders = $orderController->recent(50);
+$todayStats = $orderController->todayStats();
 $activeOrders = count(array_filter($orders, static function ($order) {
     return in_array($order['status'], ['pending', 'preparing', 'ready'], true);
+}));
+$preparingOrders = count(array_filter($orders, static function ($order) {
+    return $order['status'] === 'preparing';
 }));
 ?>
 <!DOCTYPE html>
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<title>Staff Orders - CanteenPro</title>
+<title>Staff Dashboard - CanteenPro</title>
 <link rel="stylesheet" href="<?= BASE_URL ?>/public/css/style.css">
 </head>
 <body class="admin-body">
@@ -36,23 +40,44 @@ $activeOrders = count(array_filter($orders, static function ($order) {
 
 <main class="admin-main">
     <header class="admin-topbar">
-        <h1>Order Desk</h1>
+        <div class="row-between">
+            <div>
+                <h1>Staff dashboard</h1>
+                <p class="muted">Keep today's orders moving from kitchen to collection.</p>
+            </div>
+            <span class="status-pill status-ready">Live queue</span>
+        </div>
     </header>
-    <p class="muted">View incoming customer orders and update their preparation status.</p>
 
-    <div class="stat-grid three">
+    <div class="stat-grid">
         <div class="stat-card">
-            <span class="muted small">Orders shown</span>
-            <h2><?= count($orders) ?></h2>
+            <span class="muted small">Today's revenue</span>
+            <h2>$<?= number_format((float)$todayStats['revenue'], 2) ?></h2>
+            <span class="muted small">Completed and active orders</span>
         </div>
         <div class="stat-card">
-            <span class="muted small">Active orders</span>
+            <span class="muted small">Today's orders</span>
+            <h2><?= (int)$todayStats['total_orders'] ?></h2>
+            <span class="muted small">All orders received today</span>
+        </div>
+        <div class="stat-card">
+            <span class="muted small">Pending orders</span>
+            <h2><?= (int)$todayStats['pending'] ?></h2>
+            <span class="muted small">Waiting to be started</span>
+        </div>
+        <div class="stat-card">
+            <span class="muted small">Active queue</span>
             <h2><?= $activeOrders ?></h2>
+            <span class="muted small"><?= $preparingOrders ?> currently preparing</span>
         </div>
-        <div class="stat-card">
-            <span class="muted small">Staff account</span>
-            <h2><?= e($_SESSION['name'] ?? 'Staff') ?></h2>
+    </div>
+
+    <div class="staff-toolbar">
+        <div>
+            <h2>Incoming orders</h2>
+            <p class="muted small">Update each order as it moves through preparation.</p>
         </div>
+        <span class="muted small">Showing latest <?= count($orders) ?></span>
     </div>
 
     <div class="card">
