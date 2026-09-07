@@ -3,7 +3,9 @@ if (session_status() === PHP_SESSION_NONE) {
     session_start();
 }
 
-define('BASE_URL', '/canteen-management-system');
+$scriptDirectory = str_replace('\\', '/', dirname($_SERVER['SCRIPT_NAME'] ?? '/'));
+$baseUrl = preg_replace('#/views(?:/[^/]+){1,2}$#', '', $scriptDirectory);
+define('BASE_URL', $baseUrl === '/' ? '' : rtrim($baseUrl, '/'));
 
 function redirect($path) {
     header("Location: " . BASE_URL . "/" . ltrim($path, '/'));
