@@ -14,7 +14,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $result = $auth->login($login, $password, 'staff');
 
     if ($result['success']) {
-        redirect('views/staff/dashboard.php');
+        redirect(staffDashboardPath());
     }
 
     $error = $result['message'];
