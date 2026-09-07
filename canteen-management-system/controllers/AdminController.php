@@ -24,6 +24,7 @@ class AdminController {
     }
 
     public function dashboardData() {
+        requireAdmin();
         return [
             'menu_counts' => $this->menuItemModel->counts(),
             'order_stats' => $this->orderModel->todayStats(),
@@ -40,6 +41,7 @@ class AdminController {
     }
 
     public function autoReorder($id) {
+        requireAdmin();
         $item = $this->menuItemModel->find($id);
         if (!$item) {
             return false;
@@ -57,6 +59,7 @@ class AdminController {
     }
 
     public function updateReservationStatus($id, $status) {
+        requireAdmin();
         return $this->reservationModel->updateStatus($id, $status);
     }
 }
