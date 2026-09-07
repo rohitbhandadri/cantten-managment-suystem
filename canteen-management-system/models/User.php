@@ -156,33 +156,34 @@ class User {
         $hash = password_hash($password, PASSWORD_DEFAULT);
 
         if ($role === 'staff') {
-            $staffStmt = $this->conn->prepare("INSERT INTO staff_management (staff_name, staff_email, staff_role, staff_phone, staff_shift, staff_salary, staff_status) VALUES (?, ?, ?, ?, ?, ?, ?)");
-            $staffStmt->execute([
-                $name,
-                $email,
-                $designation,
-                $phone,
-                $shift,
-                (float)$salary,
-                $status,
-            ]);
+            $status = in_array($status, ['on_duty', 'on_leave'], true) ? $status : 'on_duty';
+            $startedTransaction = !$this->conn->inTransaction();
 
-            $staffId = (int)$this->conn->lastInsertId();
-            $username = $this->generateUniqueUsername($name, $email);
+            if ($startedTransaction) {
+                $this->conn->beginTransaction();
+            }
 
-            $userStmt = $this->conn->prepare("INSERT INTO users (name, email, username, password_hash, role, phone, status, salary) VALUES (?, ?, ?, ?, ?, ?, ?, ?)");
-            $userStmt->execute([
-                $name,
-                $email,
-                $username,
-                $hash,
-                'staff',
-                $phone,
-                $status,
-                (float)$salary,
-            ]);
+            try {
+                $staffStmt = $this->conn->prepare("INSERT INTO staff_management (staff_name, staff_email, staff_role, staff_phone, staff_shift, staff_salary, staff_status) VALUES (?, ?, ?, ?, ?, ?, ?)");
+                $staffStmt->execute([$name, $email, $designation, $phone, $shift, (float)$salary, $status]);
 
-            return $staffId;
+                $staffId = (int)$this->conn->lastInsertId();
+                $username = $this->generateUniqueUsername($name, $email);
+
+                $userStmt = $this->conn->prepare("INSERT INTO users (name, email, username, password_hash, role, phone, status, salary) VALUES (?, ?, ?, ?, ?, ?, ?, ?)");
+                $userStmt->execute([$name, $email, $username, $hash, 'staff', $phone, $status, (float)$salary]);
+
+                if ($startedTransaction) {
+                    $this->conn->commit();
+                }
+
+                return $staffId;
+            } catch (Throwable $exception) {
+                if ($startedTransaction && $this->conn->inTransaction()) {
+                    $this->conn->rollBack();
+                }
+                throw $exception;
+            }
         }
 
         $stmt = $this->conn->prepare("INSERT INTO {$this->table} (name, email, username, password_hash, role, phone) VALUES (?, ?, ?, ?, ?, ?)");
@@ -197,17 +198,34 @@ class User {
             $status = 'on_duty';
         }
 
-        $stmt = $this->conn->prepare("UPDATE staff_management SET staff_name = ?, staff_email = ?, staff_salary = ?, staff_role = ?, staff_phone = ?, staff_shift = ?, staff_status = ? WHERE id = ?");
-        return $stmt->execute([
-            trim($name),
-            trim($email),
-            (float)$salary,
-            trim($role),
-            trim($phone),
-            trim($shift),
-            $status,
-            (int)$id,
-        ]);
+        $existing = $this->getStaffById($id);
+        if (!$existing) {
+            return false;
+        }
+
+        $startedTransaction = !$this->conn->inTransaction();
+        if ($startedTransaction) {
+            $this->conn->beginTransaction();
+        }
+
+        try {
+            $stmt = $this->conn->prepare("UPDATE staff_management SET staff_name = ?, staff_email = ?, staff_salary = ?, staff_role = ?, staff_phone = ?, staff_shift = ?, staff_status = ? WHERE id = ?");
+            $updated = $stmt->execute([trim($name), trim($email), (float)$salary, trim($role), trim($phone), trim($shift), $status, (int)$id]);
+
+            $userStmt = $this->conn->prepare("UPDATE users SET name = ?, email = ?, salary = ?, phone = ?, status = ? WHERE email = ? AND role = 'staff'");
+            $userStmt->execute([trim($name), trim($email), (float)$salary, trim($phone), $status, $existing['staff_email']]);
+
+            if ($startedTransaction) {
+                $this->conn->commit();
+            }
+
+            return $updated;
+        } catch (Throwable $exception) {
+            if ($startedTransaction && $this->conn->inTransaction()) {
+                $this->conn->rollBack();
+            }
+            throw $exception;
+        }
     }
 
     public function updateLastLogin($id) {
@@ -222,7 +240,7 @@ class User {
 
     public function listByRole($role) {
         if ($role === 'staff') {
-            $stmt = $this->conn->prepare("SELECT id, staff_name AS name, staff_email AS email, staff_role AS role, staff_phone AS phone, staff_shift AS shift, staff_salary AS salary, staff_status AS status, performance_rating, rating_count FROM staff_management WHERE is_active = 1 AND deleted_at IS NULL ORDER BY staff_name ASC");
+            $stmt = $this->conn->prepare("SELECT sm.id, sm.staff_name AS name, sm.staff_email AS email, sm.staff_role AS role, sm.staff_phone AS phone, sm.staff_shift AS shift, sm.staff_salary AS salary, sm.staff_status AS status, sm.performance_rating, sm.rating_count, u.username, u.id AS user_id FROM staff_management sm LEFT JOIN users u ON u.email = sm.staff_email AND u.role = 'staff' WHERE sm.is_active = 1 AND sm.deleted_at IS NULL ORDER BY sm.staff_name ASC");
             $stmt->execute();
             return $stmt->fetchAll(PDO::FETCH_ASSOC);
         }
@@ -235,6 +253,25 @@ class User {
 
         $stmt = $this->conn->prepare("SELECT * FROM {$this->table} WHERE role = ? ORDER BY name ASC");
         $stmt->execute([$role]);
+        return $stmt->fetchAll(PDO::FETCH_ASSOC);
+    }
+
+    public function listActiveAccounts($role = 'all') {
+        $sql = "SELECT u.id, u.name, u.username, u.email, u.phone, u.role, u.status, u.is_active, u.last_login_at, u.created_at,
+                    sm.staff_role, sm.staff_shift
+                FROM users u
+                LEFT JOIN staff_management sm ON sm.staff_email = u.email AND sm.is_active = 1 AND sm.deleted_at IS NULL
+                WHERE u.is_active = 1 AND u.status != 'removed'";
+        $params = [];
+
+        if (in_array($role, ['customer', 'staff'], true)) {
+            $sql .= " AND u.role = ?";
+            $params[] = $role;
+        }
+
+        $sql .= " ORDER BY u.role ASC, u.name ASC";
+        $stmt = $this->conn->prepare($sql);
+        $stmt->execute($params);
         return $stmt->fetchAll(PDO::FETCH_ASSOC);
     }
 
@@ -273,12 +310,26 @@ class User {
             return false;
         }
 
+        $staff = $this->getStaffById($id);
+        if (!$staff) {
+            return false;
+        }
+
         $stmt = $this->conn->prepare("UPDATE staff_management SET staff_status = ? WHERE id = ? AND is_active = 1 AND deleted_at IS NULL");
-        return $stmt->execute([$status, $id]);
+        $updated = $stmt->execute([$status, $id]);
+        $userStmt = $this->conn->prepare("UPDATE users SET status = ? WHERE email = ? AND role = 'staff'");
+        $userStmt->execute([$status, $staff['staff_email']]);
+        return $updated;
     }
 
     public function deleteStaff($id) {
+        $staff = $this->getStaffById($id);
         $stmt = $this->conn->prepare("UPDATE staff_management SET is_active = 0, deleted_at = NOW() WHERE id = ? AND is_active = 1");
-        return $stmt->execute([$id]);
+        $deleted = $stmt->execute([$id]);
+        if ($staff) {
+            $userStmt = $this->conn->prepare("UPDATE users SET status = 'removed', is_active = 0 WHERE email = ? AND role = 'staff'");
+            $userStmt->execute([$staff['staff_email']]);
+        }
+        return $deleted;
     }
 }
