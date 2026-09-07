@@ -11,6 +11,7 @@ class ReservationController {
     }
 
     public function availableTables($date, $time) {
+        requireCustomer();
         $all = $this->tableModel->all();
         $reservedIds = $this->reservationModel->reservedTableIds($date, $time);
         foreach ($all as &$t) {
@@ -20,16 +21,19 @@ class ReservationController {
     }
 
     public function book($userId, $tableId, $date, $time, $guests) {
+        requireCustomer();
         $start = $time;
         $end = date('H:i:s', strtotime($time . ' +1 hour'));
         return $this->reservationModel->create($userId, $tableId, $date, $start, $end, $guests);
     }
 
     public function myReservations($userId) {
+        requireCustomer();
         return $this->reservationModel->findByUser($userId);
     }
 
     public function updateStatus($id, $status) {
+        requireAdmin();
         return $this->reservationModel->updateStatus($id, $status);
     }
 }
