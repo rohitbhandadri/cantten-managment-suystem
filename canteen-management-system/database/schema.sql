@@ -22,6 +22,7 @@ CREATE TABLE staff_management (
     staff_name VARCHAR(150) NOT NULL,
     staff_email VARCHAR(150) NOT NULL,
     staff_role VARCHAR(60) NOT NULL DEFAULT 'Service Staff',
+    department VARCHAR(80) NOT NULL DEFAULT 'Operations',
     staff_phone VARCHAR(20) NULL,
     staff_shift ENUM('Morning','Evening','Night') NOT NULL DEFAULT 'Morning',
     staff_salary DECIMAL(10,2) NOT NULL DEFAULT 0,
@@ -87,8 +88,11 @@ CREATE TABLE orders (
     service_fee DECIMAL(10,2) NOT NULL DEFAULT 0,
     total_amount DECIMAL(10,2) NOT NULL DEFAULT 0,
     special_instructions TEXT,
+    table_number VARCHAR(20) DEFAULT NULL,
+    served_by_staff_id INT DEFAULT NULL,
     order_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+    FOREIGN KEY (served_by_staff_id) REFERENCES staff_management(id) ON DELETE SET NULL
 );
 
 CREATE TABLE order_items (
@@ -147,6 +151,38 @@ CREATE TABLE promo_claims (
     shop_name VARCHAR(100) NOT NULL DEFAULT 'CanteenPro',
     claimed_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+);
+
+CREATE TABLE staff_tasks (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    staff_id INT NOT NULL,
+    title VARCHAR(180) NOT NULL,
+    due_at DATETIME NULL,
+    is_done TINYINT(1) NOT NULL DEFAULT 0,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (staff_id) REFERENCES staff_management(id) ON DELETE CASCADE
+);
+
+CREATE TABLE receiving_deliveries (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    supplier VARCHAR(150) NOT NULL,
+    items_received VARCHAR(255) NOT NULL,
+    quantity INT NOT NULL DEFAULT 1,
+    status ENUM('pending','received') NOT NULL DEFAULT 'pending',
+    received_by_staff_id INT DEFAULT NULL,
+    received_at DATETIME NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (received_by_staff_id) REFERENCES staff_management(id) ON DELETE SET NULL
+);
+
+CREATE TABLE operating_costs (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    category VARCHAR(100) NOT NULL,
+    department VARCHAR(80) NOT NULL DEFAULT 'Operations',
+    amount DECIMAL(10,2) NOT NULL,
+    cost_date DATE NOT NULL,
+    notes VARCHAR(255) DEFAULT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
 -- Seed data

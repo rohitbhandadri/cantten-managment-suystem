@@ -7,12 +7,12 @@ class Order {
         $this->conn = $db;
     }
 
-    public function create($userId, $subtotal, $tax, $serviceFee, $total, $orderType = 'takeaway', $instructions = '', $discountAmount = 0, $promoCode = null) {
+    public function create($userId, $subtotal, $tax, $serviceFee, $total, $orderType = 'takeaway', $instructions = '', $discountAmount = 0, $promoCode = null, $tableNumber = null) {
         $orderNumber = 'ORD-' . strtoupper(substr(uniqid(), -6));
         $stmt = $this->conn->prepare("INSERT INTO {$this->table}
-            (order_number, user_id, status, order_type, subtotal, discount_amount, promo_code, tax, service_fee, total_amount, special_instructions)
-            VALUES (?, ?, 'pending', ?, ?, ?, ?, ?, ?, ?, ?)");
-        $stmt->execute([$orderNumber, $userId, $orderType, $subtotal, $discountAmount, $promoCode, $tax, $serviceFee, $total, $instructions]);
+            (order_number, user_id, status, order_type, subtotal, discount_amount, promo_code, tax, service_fee, total_amount, special_instructions, table_number)
+            VALUES (?, ?, 'pending', ?, ?, ?, ?, ?, ?, ?, ?, ?) ");
+        $stmt->execute([$orderNumber, $userId, $orderType, $subtotal, $discountAmount, $promoCode, $tax, $serviceFee, $total, $instructions, $tableNumber]);
         return $this->conn->lastInsertId();
     }
 

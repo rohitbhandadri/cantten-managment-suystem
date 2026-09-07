@@ -43,6 +43,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $salary = $_POST['add_staff_salary'] ?? 0;
         $password = (string)($_POST['add_staff_password'] ?? '');
         $role = trim($_POST['add_staff_role'] ?? 'Service Staff');
+        $department = trim($_POST['add_staff_department'] ?? 'Operations');
         $phone = trim($_POST['add_staff_phone'] ?? '');
         $shift = trim($_POST['add_staff_shift'] ?? 'Morning');
         $status = $_POST['add_staff_status'] ?? 'on_duty';
@@ -52,10 +53,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         } elseif ($userModel->findByEmail($email)) {
             $response['message'] = 'A staff member with this email already exists.';
         } else {
-            $userModel->create($name, $email, $password, 'staff', $phone, (float)$salary, $status, $role, $shift);
+            $createdStaffId = $userModel->create($name, $email, $password, 'staff', $phone, (float)$salary, $status, $role, $shift, $department);
             $createdUser = $userModel->findByEmail($email);
             $response = [
                 'success' => true,
+                'staff_id' => $createdStaffId,
                 'username' => $createdUser['username'] ?? $email,
                 'message' => 'Staff member added successfully. Login ID: ' . ($createdUser['username'] ?? $email) . '.',
             ];
@@ -79,6 +81,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $email = trim($_POST['edit_staff_email'] ?? '');
         $salary = $_POST['edit_staff_salary'] ?? 0;
         $role = trim($_POST['edit_staff_role'] ?? 'Service Staff');
+        $department = trim($_POST['edit_staff_department'] ?? 'Operations');
         $phone = trim($_POST['edit_staff_phone'] ?? '');
         $shift = trim($_POST['edit_staff_shift'] ?? 'Morning');
         $status = $_POST['edit_staff_status'] ?? 'on_duty';
@@ -86,7 +89,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         if ($staffId <= 0 || $name === '' || !validateEmailAddress($email) || !validateSalary($salary) || !validatePhoneNumber($phone)) {
             $response['message'] = 'Please enter valid staff details before saving.';
         } else {
-            $userModel->updateStaff($staffId, $name, $email, (float)$salary, $role, $phone, $shift, $status);
+            $userModel->updateStaff($staffId, $name, $email, (float)$salary, $role, $phone, $shift, $status, $department);
             $response = ['success' => true, 'message' => 'Staff details updated successfully.'];
         }
 
@@ -159,7 +162,8 @@ $filteredStaff = array_values(array_filter($staffMembers, function ($staff) use 
 $onDuty = $userModel->countStaffByStatus('on_duty');
 $onLeave = $userModel->countStaffByStatus('on_leave');
 $totalMonthlyPayroll = $userModel->getTotalMonthlyPayroll();
-$staffRoles = ['Chef', 'Cashier', 'Inventory Manager', 'Cleaner', 'Service Staff'];
+$staffRoles = ['Chef', 'Cook', 'Waiter', 'Cashier', 'Inventory Manager', 'Finance', 'Cleaner', 'Service Staff'];
+$staffDepartments = ['Operations', 'Inventory', 'Finance'];
 $staffShifts = ['Morning', 'Evening', 'Night'];
 ?>
 <!DOCTYPE html>
@@ -318,6 +322,12 @@ $staffShifts = ['Morning', 'Evening', 'Night'];
                 </select>
             </div>
             <div>
+                <label>Department</label>
+                <select name="add_staff_department">
+                    <?php foreach ($staffDepartments as $department): ?><option value="<?= e($department) ?>"><?= e($department) ?></option><?php endforeach; ?>
+                </select>
+            </div>
+            <div>
                 <label>Phone Number</label>
                 <input type="tel" name="add_staff_phone">
             </div>
@@ -415,6 +425,7 @@ $staffShifts = ['Morning', 'Evening', 'Night'];
                                 "email" => $staff['email'] ?? '',
                                 "salary" => (float)($staff['salary'] ?? 0),
                                 "role" => $staff['role'] ?? 'Service Staff',
+                                "department" => $staff['department'] ?? 'Operations',
                                 "phone" => $staff['phone'] ?? '',
                                 "shift" => $staff['shift'] ?? 'Morning',
                                 "status" => $statusValue,
@@ -465,6 +476,12 @@ $staffShifts = ['Morning', 'Evening', 'Night'];
                     <?php foreach ($staffRoles as $role): ?>
                         <option value="<?= e($role) ?>"><?= e($role) ?></option>
                     <?php endforeach; ?>
+                </select>
+            </div>
+            <div>
+                <label>Department</label>
+                <select name="edit_staff_department" id="edit_staff_department">
+                    <?php foreach ($staffDepartments as $department): ?><option value="<?= e($department) ?>"><?= e($department) ?></option><?php endforeach; ?>
                 </select>
             </div>
             <div>
@@ -563,6 +580,7 @@ $staffShifts = ['Morning', 'Evening', 'Night'];
         const username = staff.username || 'Not assigned';
         const email = staff.email || '';
         const role = staff.role || 'Service Staff';
+        const department = staff.department || 'Operations';
         const phone = staff.phone || '—';
         const shift = staff.shift || 'Morning';
         const salary = Number(staff.salary || 0);
@@ -577,6 +595,7 @@ $staffShifts = ['Morning', 'Evening', 'Night'];
             email: email,
             salary: salary,
             role: role,
+            department: department,
             phone: phone === '—' ? '' : phone,
             shift: shift,
             status: status
@@ -652,11 +671,12 @@ $staffShifts = ['Morning', 'Evening', 'Night'];
         }
 
         const rowValues = {
-            id: type === 'add' ? Date.now() : Number(formData.get('update_staff_id') || 0),
+            id: type === 'add' ? Number(payload.staff_id || 0) : Number(formData.get('update_staff_id') || 0),
             name: name,
             username: type === 'add' ? (payload.username || email) : (document.querySelector(`tr[data-staff-id="${Number(formData.get('update_staff_id') || 0)}"] td:nth-child(2)`)?.textContent.trim() || 'Not assigned'),
             email: email,
             role: (formData.get(type === 'add' ? 'add_staff_role' : 'edit_staff_role') || 'Service Staff').toString(),
+            department: (formData.get(type === 'add' ? 'add_staff_department' : 'edit_staff_department') || 'Operations').toString(),
             phone: phone,
             shift: (formData.get(type === 'add' ? 'add_staff_shift' : 'edit_staff_shift') || 'Morning').toString(),
             salary: Number(salary || 0),
@@ -709,6 +729,7 @@ $staffShifts = ['Morning', 'Evening', 'Night'];
         document.getElementById('edit_staff_email').value = staff.email || '';
         document.getElementById('edit_staff_salary').value = Number(staff.salary || 0);
         document.getElementById('edit_staff_role').value = staff.role || 'Service Staff';
+        document.getElementById('edit_staff_department').value = staff.department || 'Operations';
         document.getElementById('edit_staff_phone').value = staff.phone || '';
         document.getElementById('edit_staff_shift').value = staff.shift || 'Morning';
         document.getElementById('edit_staff_status').value = staff.status || 'on_duty';

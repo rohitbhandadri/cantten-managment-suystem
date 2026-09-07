@@ -11,7 +11,9 @@ $current = basename($_SERVER['PHP_SELF']);
     </div>
 
     <nav class="sidebar-nav">
-        <a href="<?= BASE_URL ?>/views/staff/dashboard.php" class="<?= $current === 'dashboard.php' ? 'active' : '' ?>">📋 Orders</a>
+        <a href="<?= BASE_URL ?>/views/staff/dashboard.php" class="<?= $current === 'dashboard.php' ? 'active' : '' ?>">📋 Workspace</a>
+        <a href="<?= BASE_URL ?>/views/staff/directory.php" class="<?= $current === 'directory.php' ? 'active' : '' ?>">👥 Staff Directory</a>
+        <a href="<?= BASE_URL ?>/views/staff/profile.php" class="<?= $current === 'profile.php' ? 'active' : '' ?>">⭐ My Reviews</a>
     </nav>
 
     <div class="sidebar-footer">

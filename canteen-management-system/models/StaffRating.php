@@ -32,7 +32,7 @@ class StaffRating {
         $stmt = $this->conn->prepare("SELECT o.id FROM orders o
             INNER JOIN payments p ON p.order_id = o.id
             INNER JOIN staff_management sm ON sm.id = ? AND sm.is_active = 1 AND sm.staff_status <> 'removed'
-            WHERE o.id = ? AND o.user_id = ? AND p.status = 'success' AND o.status <> 'cancelled'");
+            WHERE o.id = ? AND o.user_id = ? AND p.status = 'success' AND o.status = 'completed'");
         $stmt->execute([$staffId, $orderId, $customerId]);
         if (!$stmt->fetchColumn()) {
             return false;

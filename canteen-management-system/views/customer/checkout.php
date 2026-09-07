@@ -13,8 +13,6 @@ $cart = new CartController();
 $orderController = new OrderController($db);
 $paymentController = new PaymentController($db);
 $promo = new Promo($db);
-require_once __DIR__ . '/../../models/StaffRating.php';
-$staffRatingModel = new StaffRating($db);
 
 $items = $cart->items();
 if (empty($items)) {
@@ -37,6 +35,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if (isset($_POST['place_order'])) {
         // Step 1: create order + payment record, "send OTP"
         $method = $_POST['method'] ?? 'esewa';
+        $orderType = $_POST['order_type'] ?? 'takeaway';
+        $tableNumber = trim($_POST['table_number'] ?? '');
+        if (!in_array($orderType, ['takeaway', 'dine-in'], true)) {
+            $orderType = 'takeaway';
+        }
+        if ($orderType === 'takeaway') {
+            $tableNumber = null;
+        }
         $promoCode = strtoupper(trim($_POST['promo_code'] ?? ''));
         $promoClaim = $promoCode ? $promo->findValidForUser($_SESSION['user_id'], $promoCode) : null;
         if ($promoCode && !$promoClaim) {
@@ -45,7 +51,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         } else {
             $discountAmount = $promoClaim ? round($subtotal * ((int)$promoClaim['discount_percent'] / 100), 2) : 0;
             $_SESSION['checkout_promo_code'] = $promoClaim['promo_code'] ?? '';
-            $result = $orderController->placeOrder($_SESSION['user_id'], $items, 'takeaway', '', $discountAmount, $promoClaim['promo_code'] ?? null);
+            $result = $orderController->placeOrder($_SESSION['user_id'], $items, $orderType, '', $discountAmount, $promoClaim['promo_code'] ?? null, $tableNumber);
         }
         if (isset($result) && $result['success']) {
             $paymentId = $paymentController->initiate($result['order_id'], $method, $result['total']);
@@ -68,30 +74,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $orderId = $_SESSION['checkout_order_id'];
                 $cart->clear();
                 unset($_SESSION['checkout_order_id'], $_SESSION['checkout_payment_id'], $_SESSION['checkout_otp'], $_SESSION['checkout_promo_code']);
-
-                $staffId = isset($_POST['staff_id']) ? (int)$_POST['staff_id'] : 0;
-                $rating = isset($_POST['staff_rating']) ? (int)$_POST['staff_rating'] : 0;
-                $comment = trim((string)($_POST['staff_comment'] ?? ''));
-
-                if ($staffId > 0 && $rating >= 1 && $rating <= 5) {
-                    $ratingId = $staffRatingModel->add($staffId, $_SESSION['user_id'], $orderId, $rating, $comment);
-
-                    $perfColumnExists = (bool)$db->query("SELECT COUNT(*) FROM information_schema.columns WHERE table_schema = 'canteen_db' AND table_name = 'staff_management' AND column_name = 'performance_rating'")->fetchColumn();
-                    $countColumnExists = (bool)$db->query("SELECT COUNT(*) FROM information_schema.columns WHERE table_schema = 'canteen_db' AND table_name = 'staff_management' AND column_name = 'rating_count'")->fetchColumn();
-
-                    if ($ratingId && $perfColumnExists && $countColumnExists) {
-                        $stmt = $db->prepare("SELECT performance_rating, rating_count FROM staff_management WHERE id = ?");
-                        $stmt->execute([$staffId]);
-                        $staffRow = $stmt->fetch(PDO::FETCH_ASSOC);
-                        if ($staffRow) {
-                            $newCount = (int)$staffRow['rating_count'] + 1;
-                            $newAverage = ((float)$staffRow['performance_rating'] * (int)$staffRow['rating_count'] + $rating) / $newCount;
-                            $bonus = $newAverage >= 4.5 ? 200 : ($newAverage >= 4.0 ? 100 : 0);
-                            $db->prepare("UPDATE staff_management SET performance_rating = ?, rating_count = ?, staff_salary = staff_salary + ? WHERE id = ?")
-                                ->execute([$newAverage, $newCount, $bonus, $staffId]);
-                        }
-                    }
-                }
 
                 redirect('views/customer/order_tracking.php?id=' . $orderId);
             }
@@ -143,6 +125,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     <input type="text" id="promo-code" name="promo_code" value="<?= e($promoCode) ?>" placeholder="CUSTOMER-HEALTHY-LUNCH-25OFF">
                 </div>
                 <p class="muted small">Enter the code you claimed from CanteenPro.</p>
+                <label for="order-type">Order type</label>
+                <select name="order_type" id="order-type">
+                    <option value="takeaway">Takeaway</option>
+                    <option value="dine-in">Dine-in</option>
+                </select>
+                <label for="table-number">Table number <span class="muted small">(for dine-in)</span></label>
+                <input type="text" id="table-number" name="table_number" maxlength="20" placeholder="T1">
                 <div class="payment-methods">
                     <label class="payment-option">
                         <input type="radio" name="method" value="esewa" checked>
@@ -165,41 +154,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         <div>
             <?php if ($step === 'verify'): ?>
             <form method="POST">
-                <div class="card staff-feedback-card">
-                    <div class="section-header">
-                        <h3>⭐ Staff Feedback</h3>
-                        <span class="mini-tag">Service review</span>
-                    </div>
-
-                    <div class="form-group">
-                        <label for="staff_id">Staff member on duty</label>
-                        <select name="staff_id" id="staff_id" required>
-                            <option value="">Select staff</option>
-                            <?php
-                            $staffList = $db->query("SELECT id, staff_name FROM staff_management WHERE staff_status = 'on_duty' ORDER BY staff_name ASC")->fetchAll(PDO::FETCH_ASSOC);
-                            foreach ($staffList as $staff): ?>
-                                <option value="<?= (int)$staff['id'] ?>"><?= e($staff['staff_name']) ?></option>
-                            <?php endforeach; ?>
-                        </select>
-                    </div>
-
-                    <div class="form-group">
-                        <label for="staff_rating">Customer rating</label>
-                        <select name="staff_rating" id="staff_rating" required>
-                            <option value="5">5 - Excellent</option>
-                            <option value="4">4 - Very Good</option>
-                            <option value="3">3 - Good</option>
-                            <option value="2">2 - Fair</option>
-                            <option value="1">1 - Poor</option>
-                        </select>
-                    </div>
-
-                    <div class="form-group">
-                        <label for="staff_comment">Comment</label>
-                        <textarea name="staff_comment" id="staff_comment" rows="3" placeholder="Leave a short comment about the staff service..."></textarea>
-                    </div>
-                </div>
-
                 <div class="card verify-card">
                     <div class="section-header">
                         <h3>🛡 Verification</h3>

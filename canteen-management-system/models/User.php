@@ -92,6 +92,7 @@ class User {
     private function ensureStaffTableSchema() {
         $requiredColumns = [
             'staff_role' => "ALTER TABLE staff_management ADD COLUMN staff_role VARCHAR(60) NOT NULL DEFAULT 'Service Staff' AFTER staff_email",
+            'department' => "ALTER TABLE staff_management ADD COLUMN department VARCHAR(80) NOT NULL DEFAULT 'Operations' AFTER staff_role",
             'staff_phone' => "ALTER TABLE staff_management ADD COLUMN staff_phone VARCHAR(20) NULL AFTER staff_role",
             'staff_shift' => "ALTER TABLE staff_management ADD COLUMN staff_shift ENUM('Morning','Evening','Night') NOT NULL DEFAULT 'Morning' AFTER staff_phone",
             'is_active' => "ALTER TABLE staff_management ADD COLUMN is_active TINYINT(1) NOT NULL DEFAULT 1 AFTER staff_status",
@@ -163,12 +164,12 @@ class User {
     }
 
     public function getStaffById($id) {
-        $stmt = $this->conn->prepare("SELECT id, staff_name, staff_email, staff_role, staff_phone, staff_shift, staff_salary, staff_status, performance_rating, rating_count FROM staff_management WHERE id = ? LIMIT 1");
+        $stmt = $this->conn->prepare("SELECT id, staff_name, staff_email, staff_role, department, staff_phone, staff_shift, staff_salary, staff_status, performance_rating, rating_count FROM staff_management WHERE id = ? LIMIT 1");
         $stmt->execute([$id]);
         return $stmt->fetch(PDO::FETCH_ASSOC);
     }
 
-    public function create($name, $email, $password, $role = 'customer', $phone = null, $salary = 0, $status = 'on_duty', $designation = 'Service Staff', $shift = 'Morning') {
+    public function create($name, $email, $password, $role = 'customer', $phone = null, $salary = 0, $status = 'on_duty', $designation = 'Service Staff', $shift = 'Morning', $department = 'Operations') {
         $hash = password_hash($password, PASSWORD_DEFAULT);
 
         if ($role === 'staff') {
@@ -180,8 +181,8 @@ class User {
             }
 
             try {
-                $staffStmt = $this->conn->prepare("INSERT INTO staff_management (staff_name, staff_email, staff_role, staff_phone, staff_shift, staff_salary, staff_status) VALUES (?, ?, ?, ?, ?, ?, ?)");
-                $staffStmt->execute([$name, $email, $designation, $phone, $shift, (float)$salary, $status]);
+                $staffStmt = $this->conn->prepare("INSERT INTO staff_management (staff_name, staff_email, staff_role, department, staff_phone, staff_shift, staff_salary, staff_status) VALUES (?, ?, ?, ?, ?, ?, ?, ?)");
+                $staffStmt->execute([$name, $email, $designation, $department, $phone, $shift, (float)$salary, $status]);
 
                 $staffId = (int)$this->conn->lastInsertId();
                 $username = $this->generateUniqueUsername($name, $email);
@@ -220,8 +221,8 @@ class User {
         }
 
         try {
-            $staffStmt = $this->conn->prepare("INSERT INTO staff_management (staff_name, staff_email, staff_role, staff_phone, staff_shift, staff_salary, staff_status) VALUES (?, ?, ?, ?, ?, ?, ?)");
-            $staffStmt->execute([$account['name'], $account['email'], $designation, $phone, $shift, (float)$salary, $status]);
+            $staffStmt = $this->conn->prepare("INSERT INTO staff_management (staff_name, staff_email, staff_role, department, staff_phone, staff_shift, staff_salary, staff_status) VALUES (?, ?, ?, ?, ?, ?, ?, ?)");
+            $staffStmt->execute([$account['name'], $account['email'], $designation, 'Operations', $phone, $shift, (float)$salary, $status]);
 
             $userStmt = $this->conn->prepare("UPDATE users SET password_hash = ?, role = 'staff', phone = ?, salary = ?, status = ?, is_active = 1 WHERE id = ? AND role = 'customer'");
             $userStmt->execute([password_hash($password, PASSWORD_DEFAULT), $phone, (float)$salary, $status, (int)$account['id']]);
@@ -239,7 +240,7 @@ class User {
         }
     }
 
-    public function updateStaff($id, $name, $email, $salary, $role, $phone, $shift, $status) {
+    public function updateStaff($id, $name, $email, $salary, $role, $phone, $shift, $status, $department = 'Operations') {
         $allowedStatus = ['on_duty', 'on_leave', 'removed'];
         if (!in_array($status, $allowedStatus, true)) {
             $status = 'on_duty';
@@ -256,8 +257,8 @@ class User {
         }
 
         try {
-            $stmt = $this->conn->prepare("UPDATE staff_management SET staff_name = ?, staff_email = ?, staff_salary = ?, staff_role = ?, staff_phone = ?, staff_shift = ?, staff_status = ? WHERE id = ?");
-            $updated = $stmt->execute([trim($name), trim($email), (float)$salary, trim($role), trim($phone), trim($shift), $status, (int)$id]);
+            $stmt = $this->conn->prepare("UPDATE staff_management SET staff_name = ?, staff_email = ?, staff_salary = ?, staff_role = ?, department = ?, staff_phone = ?, staff_shift = ?, staff_status = ? WHERE id = ?");
+            $updated = $stmt->execute([trim($name), trim($email), (float)$salary, trim($role), trim($department), trim($phone), trim($shift), $status, (int)$id]);
 
             $userStmt = $this->conn->prepare("UPDATE users SET name = ?, email = ?, salary = ?, phone = ?, status = ? WHERE email = ? AND role = 'staff'");
             $userStmt->execute([trim($name), trim($email), (float)$salary, trim($phone), $status, $existing['staff_email']]);
@@ -287,7 +288,7 @@ class User {
 
     public function listByRole($role) {
         if ($role === 'staff') {
-            $stmt = $this->conn->prepare("SELECT sm.id, sm.staff_name AS name, sm.staff_email AS email, sm.staff_role AS role, sm.staff_phone AS phone, sm.staff_shift AS shift, sm.staff_salary AS salary, sm.staff_status AS status, sm.performance_rating, sm.rating_count, u.username, u.id AS user_id FROM staff_management sm LEFT JOIN users u ON u.email = sm.staff_email AND u.role = 'staff' WHERE sm.is_active = 1 AND sm.deleted_at IS NULL ORDER BY sm.staff_name ASC");
+            $stmt = $this->conn->prepare("SELECT sm.id, sm.staff_name AS name, sm.staff_email AS email, sm.staff_role AS role, sm.department, sm.staff_phone AS phone, sm.staff_shift AS shift, sm.staff_salary AS salary, sm.staff_status AS status, sm.performance_rating, sm.rating_count, u.username, u.id AS user_id FROM staff_management sm LEFT JOIN users u ON u.email = sm.staff_email AND u.role = 'staff' WHERE sm.is_active = 1 AND sm.deleted_at IS NULL ORDER BY sm.staff_name ASC");
             $stmt->execute();
             return $stmt->fetchAll(PDO::FETCH_ASSOC);
         }

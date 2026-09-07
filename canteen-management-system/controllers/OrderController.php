@@ -15,7 +15,7 @@ class OrderController {
         $this->menuItemModel = new MenuItem($db);
     }
 
-    public function placeOrder($userId, $cartItems, $orderType = 'takeaway', $instructions = '', $discountAmount = 0, $promoCode = null) {
+    public function placeOrder($userId, $cartItems, $orderType = 'takeaway', $instructions = '', $discountAmount = 0, $promoCode = null, $tableNumber = null) {
         if (empty($cartItems)) {
             return ['success' => false, 'message' => 'Cart is empty.'];
         }
@@ -56,7 +56,7 @@ class OrderController {
             $tax = round($taxableSubtotal * 0.10, 2);
             $serviceFee = 1.00;
             $total = $taxableSubtotal + $tax + $serviceFee;
-            $orderId = $this->orderModel->create($userId, $subtotal, $tax, $serviceFee, $total, $orderType, $instructions, $discountAmount, $promoCode);
+            $orderId = $this->orderModel->create($userId, $subtotal, $tax, $serviceFee, $total, $orderType, $instructions, $discountAmount, $promoCode, $tableNumber);
             foreach ($validatedItems as $item) {
                 $this->orderItemModel->create($orderId, $item['id'], $item['price'], $item['qty']);
                 $this->menuItemModel->reduceStock($item['id'], $item['qty']);

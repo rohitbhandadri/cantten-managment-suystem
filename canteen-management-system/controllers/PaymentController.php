@@ -21,7 +21,7 @@ class PaymentController {
         if (!$ref) {
             return false;
         }
-        $this->orderModel->updateStatus($orderId, 'preparing');
+        $this->orderModel->updateStatus($orderId, 'pending');
         return $ref;
     }
 
