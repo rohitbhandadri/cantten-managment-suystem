@@ -13,6 +13,9 @@ class AuthController {
         if (!$user || !password_verify($password, $user['password_hash'])) {
             return ['success' => false, 'message' => 'Invalid email or password.'];
         }
+        if (($user['is_active'] ?? 1) != 1 || ($user['status'] ?? '') === 'removed') {
+            return ['success' => false, 'message' => 'This account is inactive. Please contact an administrator.'];
+        }
         if ($user['role'] !== $expectedRole) {
             return ['success' => false, 'message' => "This account is not registered as $expectedRole."];
         }
