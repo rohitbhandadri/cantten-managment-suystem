@@ -1,5 +1,11 @@
 Canteen Management System
 
+GitHub Pages demo
+
+The repository includes a static HTML demo in `docs/`. Open `index.html` locally or enable GitHub Pages with the source set to the `main` branch and the `/docs` folder. The demo includes customer ordering, staff order handling, and an admin dashboard. Demo data is stored in the browser with localStorage.
+
+The original PHP/MySQL application remains in `canteen-management-system/`. PHP pages, sessions, database queries, and POST actions require a PHP-capable host and cannot run on GitHub Pages.
+
 A digital solution designed to streamline daily canteen operations — replacing manual processes with an efficient, automated system for managing orders, payments, and inventory.
 
 Features
