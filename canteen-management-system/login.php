@@ -19,7 +19,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             redirect('views/admin/dashboard.php');
         }
         if ($result['role'] === 'staff') {
-            redirect('views/staff/dashboard.php');
+            redirect(staffDashboardPath());
         }
         redirect('views/customer/home.php');
     } else {
