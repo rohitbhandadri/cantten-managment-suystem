@@ -169,6 +169,12 @@ class User {
         return $stmt->fetch(PDO::FETCH_ASSOC);
     }
 
+    public function getStaffForUser($userId) {
+        $stmt = $this->conn->prepare("SELECT sm.* FROM staff_management sm INNER JOIN users u ON u.email = sm.staff_email WHERE u.id = ? AND u.role = 'staff' AND sm.is_active = 1 AND sm.deleted_at IS NULL LIMIT 1");
+        $stmt->execute([(int)$userId]);
+        return $stmt->fetch(PDO::FETCH_ASSOC);
+    }
+
     public function create($name, $email, $password, $role = 'customer', $phone = null, $salary = 0, $status = 'on_duty', $designation = 'Service Staff', $shift = 'Morning', $department = 'Operations') {
         $hash = password_hash($password, PASSWORD_DEFAULT);
 
