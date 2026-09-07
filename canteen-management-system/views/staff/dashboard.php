@@ -18,10 +18,10 @@ if (empty($_SESSION['staff_workspace_csrf'])) {
 $csrfToken = $_SESSION['staff_workspace_csrf'];
 $message = '';
 $error = '';
-$role = strtolower(trim($staff['staff_role'] ?? 'service staff'));
-$canQueue = in_array($role, ['cook', 'chef', 'waiter', 'service staff', 'cashier'], true);
-$isInventory = strpos($role, 'inventory') !== false;
-$isFinance = strpos($role, 'finance') !== false;
+$role = currentStaffRole();
+$canQueue = staffHasRole(['cook', 'waiter', 'cashier']);
+$isInventory = staffHasRole(['inventory']);
+$isFinance = staffHasRole(['finance']);
 $financePeriod = $_GET['period'] ?? 'month';
 if (!in_array($financePeriod, ['today', 'week', 'month'], true)) {
     $financePeriod = 'month';
