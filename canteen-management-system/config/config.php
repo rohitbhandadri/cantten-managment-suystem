@@ -22,11 +22,46 @@ function isLoggedIn() {
 }
 
 function isAdmin() {
-    return isLoggedIn() && $_SESSION['role'] === 'admin';
+    return isLoggedIn() && ($_SESSION['role'] === 'admin' || staffRoleIs(['manager', 'admin']));
 }
 
 function isStaff() {
     return isLoggedIn() && $_SESSION['role'] === 'staff';
+}
+
+function normalizeStaffRole($role) {
+    $role = strtolower(trim((string)$role));
+    $role = str_replace(['_', '-'], ' ', $role);
+    $aliases = [
+        'chef' => 'cook',
+        'service staff' => 'waiter',
+        'server' => 'waiter',
+        'stock' => 'inventory',
+        'stock manager' => 'inventory',
+        'inventory manager' => 'inventory',
+        'accountant' => 'finance',
+    ];
+    return $aliases[$role] ?? $role;
+}
+
+function currentStaffRole() {
+    return normalizeStaffRole($_SESSION['staff_role'] ?? '');
+}
+
+function staffRoleIs($roles) {
+    if (!isStaff()) {
+        return false;
+    }
+    $roles = array_map('normalizeStaffRole', (array)$roles);
+    return in_array(currentStaffRole(), $roles, true);
+}
+
+function staffHasRole($roles) {
+    return staffRoleIs(['manager', 'admin']) || staffRoleIs($roles);
+}
+
+function staffDashboardPath() {
+    return isAdmin() ? 'views/admin/dashboard.php' : 'views/staff/dashboard.php';
 }
 
 function requireLogin() {
@@ -34,11 +69,24 @@ function requireLogin() {
 }
 
 function requireAdmin() {
-    if (!isAdmin()) redirect('login.php');
+    if (!isAdmin()) redirect(isStaff() ? 'views/staff/dashboard.php' : 'login.php');
 }
 
 function requireStaff() {
     if (!isStaff()) redirect('staff_login.php');
+}
+
+function requireStaffRole($roles) {
+    requireStaff();
+    if (!staffHasRole($roles)) {
+        redirect('views/staff/dashboard.php');
+    }
+}
+
+function requireCustomer() {
+    if (!isLoggedIn() || ($_SESSION['role'] ?? '') !== 'customer') {
+        redirect(isStaff() || isAdmin() ? staffDashboardPath() : 'login.php');
+    }
 }
 
 function e($str) {
