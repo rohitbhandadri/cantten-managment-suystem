@@ -4,7 +4,7 @@ require_once __DIR__ . '/../../config/database.php';
 require_once __DIR__ . '/../../controllers/MenuController.php';
 require_once __DIR__ . '/../../models/Order.php';
 require_once __DIR__ . '/../../models/Promo.php';
-requireLogin();
+requireCustomer();
 
 $database = new Database();
 $db = $database->connect();
