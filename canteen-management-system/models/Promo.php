@@ -46,7 +46,18 @@ class Promo {
         $stmt = $this->conn->prepare("SELECT * FROM {$this->table}
             WHERE user_id = ? AND promo_code = ? AND shop_name = 'CanteenPro' LIMIT 1");
         $stmt->execute([$userId, strtoupper(trim($code))]);
-        return $stmt->fetch(PDO::FETCH_ASSOC);
+        $claim = $stmt->fetch(PDO::FETCH_ASSOC);
+
+        if (!$claim) {
+            return false;
+        }
+
+        $stmt = $this->conn->prepare("SELECT o.id FROM orders o
+            INNER JOIN payments p ON p.order_id = o.id
+            WHERE o.user_id = ? AND o.promo_code = ?
+            AND o.status <> 'cancelled' AND p.status = 'success' LIMIT 1");
+        $stmt->execute([$userId, $claim['promo_code']]);
+        return $stmt->fetchColumn() ? false : $claim;
     }
 
     public function all() {
