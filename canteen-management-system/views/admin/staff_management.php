@@ -44,6 +44,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $role = trim($_POST['add_staff_role'] ?? 'Service Staff');
         $phone = trim($_POST['add_staff_phone'] ?? '');
         $shift = trim($_POST['add_staff_shift'] ?? 'Morning');
+        $status = $_POST['add_staff_status'] ?? 'on_duty';
 
         if ($name === '' || !validateEmailAddress($email) || !validateSalary($salary) || !validatePhoneNumber($phone)) {
             $response['message'] = 'Please provide a valid name, email, phone number, and monthly salary.';
@@ -51,10 +52,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $response['message'] = 'A staff member with this email already exists.';
         } else {
             $temporaryPassword = 'staff' . random_int(1000, 9999);
-            $userModel->create($name, $email, $temporaryPassword, 'staff', $phone, (float)$salary, 'on_duty', $role, $shift);
+            $userModel->create($name, $email, $temporaryPassword, 'staff', $phone, (float)$salary, $status, $role, $shift);
             $createdUser = $userModel->findByEmail($email);
             $response = [
                 'success' => true,
+                'username' => $createdUser['username'] ?? $email,
                 'message' => 'Staff member added successfully. Login ID: ' . ($createdUser['username'] ?? $email) . ' | Temporary password: ' . $temporaryPassword,
             ];
         }
@@ -164,7 +166,7 @@ $staffShifts = ['Morning', 'Evening', 'Night'];
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>My Staff - CanteenPro</title>
+    <title>Staff Accounts - CanteenPro</title>
     <link rel="stylesheet" href="<?= BASE_URL ?>/public/css/style.css">
     <style>
         .add-staff-form {
@@ -263,7 +265,7 @@ $staffShifts = ['Morning', 'Evening', 'Night'];
 
 <main class="admin-main">
     <header class="admin-topbar">
-        <h1>My Staff</h1>
+        <h1>Staff Accounts</h1>
         <div class="admin-toolbar-actions">
             <button type="button" id="exportStaffCsv" class="btn-secondary btn-small">Export CSV</button>
             <button type="button" id="printStaffSummary" class="btn-primary btn-small">Print Summary</button>
@@ -358,6 +360,7 @@ $staffShifts = ['Morning', 'Evening', 'Night'];
             <thead>
                 <tr>
                     <th>Name</th>
+                    <th>Login ID</th>
                     <th>Email</th>
                     <th>Role</th>
                     <th>Phone</th>
@@ -383,6 +386,7 @@ $staffShifts = ['Morning', 'Evening', 'Night'];
                             <span><?= e($staff['name']) ?></span>
                         </div>
                     </td>
+                    <td><?= e($staff['username'] ?? 'Not assigned') ?></td>
                     <td><?= e($staff['email']) ?></td>
                     <td><?= e($staff['role'] ?? 'Service Staff') ?></td>
                     <td><?= e($staff['phone'] ?? '—') ?></td>
@@ -403,6 +407,7 @@ $staffShifts = ['Morning', 'Evening', 'Night'];
                             <button type="button" class="btn-small btn-primary" data-edit-staff='<?= htmlspecialchars(json_encode([
                                 "id" => (int)$staff['id'],
                                 "name" => $staff['name'] ?? '',
+                                "username" => $staff['username'] ?? '',
                                 "email" => $staff['email'] ?? '',
                                 "salary" => (float)($staff['salary'] ?? 0),
                                 "role" => $staff['role'] ?? 'Service Staff',
@@ -420,7 +425,7 @@ $staffShifts = ['Morning', 'Evening', 'Night'];
                 </tr>
             <?php endforeach; ?>
             <?php if (empty($filteredStaff)): ?>
-                <tr><td colspan="9" class="muted center">No staff members found.</td></tr>
+                <tr><td colspan="10" class="muted center">No staff members found.</td></tr>
             <?php endif; ?>
             </tbody>
         </table>
@@ -540,16 +545,18 @@ $staffShifts = ['Morning', 'Evening', 'Night'];
         return Number.isFinite(numericValue) && numericValue >= 0 && numericValue <= 1000000;
     }
 
-    function makeStatusMarkup(status) {
+    function makeStatusMarkup(status, staffId) {
         const normalizedStatus = status === 'on_leave' ? 'on_leave' : 'on_duty';
-        const label = normalizedStatus === 'on_leave' ? 'On Leave' : 'On Duty';
-        const className = normalizedStatus === 'on_leave' ? 'status-pending' : 'status-confirmed';
-        return `<span class="status-pill ${className}">${label}</span>`;
+        return `<select class="staff-status-select" data-staff-id="${Number(staffId || 0)}" data-status="${normalizedStatus}" aria-label="Update staff status">
+            <option value="on_duty" ${normalizedStatus === 'on_duty' ? 'selected' : ''}>On Duty</option>
+            <option value="on_leave" ${normalizedStatus === 'on_leave' ? 'selected' : ''}>On Leave</option>
+        </select>`;
     }
 
     function makeStaffRowMarkup(staff) {
         const id = Number(staff.id || 0);
         const name = staff.name || '';
+        const username = staff.username || 'Not assigned';
         const email = staff.email || '';
         const role = staff.role || 'Service Staff';
         const phone = staff.phone || '—';
@@ -579,6 +586,7 @@ $staffShifts = ['Morning', 'Evening', 'Night'];
                         <span>${escapeHtml(name)}</span>
                     </div>
                 </td>
+                <td>${escapeHtml(username)}</td>
                 <td>${escapeHtml(email)}</td>
                 <td>${escapeHtml(role)}</td>
                 <td>${escapeHtml(phone)}</td>
@@ -588,7 +596,7 @@ $staffShifts = ['Morning', 'Evening', 'Night'];
                     <div>${escapeHtml(perfLabel)}</div>
                     <small class="muted small">Orders handled: ${ordersHandled}</small>
                 </td>
-                <td>${makeStatusMarkup(status)}</td>
+                <td>${makeStatusMarkup(status, id)}</td>
                 <td>
                     <div class="staff-actions">
                         <button type="button" class="btn-small btn-primary" data-edit-staff='${rowData}'>Edit</button>
@@ -641,6 +649,7 @@ $staffShifts = ['Morning', 'Evening', 'Night'];
         const rowValues = {
             id: type === 'add' ? Date.now() : Number(formData.get('update_staff_id') || 0),
             name: name,
+            username: type === 'add' ? (payload.username || email) : (document.querySelector(`tr[data-staff-id="${Number(formData.get('update_staff_id') || 0)}"] td:nth-child(2)`)?.textContent.trim() || 'Not assigned'),
             email: email,
             role: (formData.get(type === 'add' ? 'add_staff_role' : 'edit_staff_role') || 'Service Staff').toString(),
             phone: phone,
@@ -655,6 +664,7 @@ $staffShifts = ['Morning', 'Evening', 'Night'];
             form.reset();
             if (staffTableBody) {
                 staffTableBody.insertAdjacentHTML('beforeend', makeStaffRowMarkup(rowValues));
+                bindStatusSelect(staffTableBody.querySelector('tr:last-child .staff-status-select'));
             }
             showMessage(addStaffMessage, 'success', payload.message || 'Staff member added successfully.');
             showToast(payload.message || 'Staff member added successfully.', 'success');
@@ -662,6 +672,7 @@ $staffShifts = ['Morning', 'Evening', 'Night'];
             const row = document.querySelector(`tr[data-staff-id="${rowValues.id}"]`);
             if (row) {
                 row.outerHTML = makeStaffRowMarkup(rowValues);
+                bindStatusSelect(document.querySelector(`tr[data-staff-id="${rowValues.id}"] .staff-status-select`));
             }
             modal.classList.remove('open');
             modal.setAttribute('aria-hidden', 'true');
@@ -726,7 +737,7 @@ $staffShifts = ['Morning', 'Evening', 'Night'];
         });
     }
 
-    document.querySelectorAll('.staff-status-select').forEach((select) => {
+    function bindStatusSelect(select) {
         const applyStatusClass = (value) => {
             select.dataset.status = value;
             select.classList.toggle('status-on-leave', value === 'on_leave');
@@ -767,16 +778,18 @@ $staffShifts = ['Morning', 'Evening', 'Night'];
                 showToast('Status update failed.', 'error');
             }
         });
-    });
+    }
+
+    document.querySelectorAll('.staff-status-select').forEach(bindStatusSelect);
 
     document.getElementById('exportStaffCsv')?.addEventListener('click', () => {
         const rows = Array.from(document.querySelectorAll('.data-table tbody tr')).filter((row) => row.style.display !== 'none');
-        const headers = ['Name', 'Email', 'Role', 'Phone', 'Shift', 'Salary', 'Performance', 'Status'];
+        const headers = ['Name', 'Login ID', 'Email', 'Role', 'Phone', 'Shift', 'Salary', 'Performance', 'Status'];
         const csvRows = [headers.join(',')];
 
         rows.forEach((row) => {
             const cells = Array.from(row.querySelectorAll('td'));
-            const rowValues = cells.slice(0, 8).map((cell) => {
+            const rowValues = cells.slice(0, 9).map((cell) => {
                 const text = cell.textContent.replace(/\r?\n/g, ' ').replace(/"/g, '""').trim();
                 return `"${text}"`;
             });
