@@ -16,6 +16,7 @@ class OrderController {
     }
 
     public function placeOrder($userId, $cartItems, $orderType = 'takeaway', $instructions = '', $discountAmount = 0, $promoCode = null, $tableNumber = null) {
+        requireCustomer();
         if (empty($cartItems)) {
             return ['success' => false, 'message' => 'Cart is empty.'];
         }
@@ -70,26 +71,32 @@ class OrderController {
     }
 
     public function getOrder($id) {
+        requireCustomer();
         return $this->orderModel->find($id);
     }
 
     public function getItems($orderId) {
+        requireCustomer();
         return $this->orderItemModel->findByOrder($orderId);
     }
 
     public function myOrders($userId) {
+        requireCustomer();
         return $this->orderModel->findByUser($userId);
     }
 
     public function recent($limit = 10) {
+        requireAdmin();
         return $this->orderModel->recent($limit);
     }
 
     public function updateStatus($id, $status) {
+        requireAdmin();
         $this->orderModel->updateStatus($id, $status);
     }
 
     public function todayStats() {
+        requireAdmin();
         return $this->orderModel->todayStats();
     }
 }
