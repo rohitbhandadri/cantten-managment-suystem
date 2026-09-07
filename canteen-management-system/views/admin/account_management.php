@@ -45,8 +45,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         if ($name === '' || !filter_var($email, FILTER_VALIDATE_EMAIL) || strlen($password) < 8 || !$validRole || !$validSalary || !$validPhone) {
             $message = 'Enter a valid name, email, password of at least 8 characters, phone number, and salary.';
             $messageType = 'error';
-        } elseif ($userModel->findByEmail($email)) {
-            $message = 'An account with this email already exists.';
+        } elseif ($existingAccount = $userModel->findByEmail($email)) {
+            if ($role === 'staff' && ($existingAccount['role'] ?? '') === 'customer' && $userModel->promoteToStaff($existingAccount, $password, (float)$salary, $status, $designation, $shift, $phone)) {
+                flash('success', 'Existing customer account promoted to staff successfully.');
+                redirect('views/admin/account_management.php');
+            }
+
+            $message = 'An account with this email already exists. Only customer accounts can be promoted to staff.';
             $messageType = 'error';
         } else {
             $userModel->create($name, $email, $password, $role, $phone, (float)$salary, $status, $designation, $shift);
