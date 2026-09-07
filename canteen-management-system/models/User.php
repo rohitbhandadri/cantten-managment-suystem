@@ -192,6 +192,37 @@ class User {
         return (int)$this->conn->lastInsertId();
     }
 
+    public function promoteToStaff($account, $password, $salary, $status, $designation, $shift, $phone) {
+        if (!$account || ($account['role'] ?? '') !== 'customer') {
+            return false;
+        }
+
+        $status = in_array($status, ['on_duty', 'on_leave'], true) ? $status : 'on_duty';
+        $startedTransaction = !$this->conn->inTransaction();
+        if ($startedTransaction) {
+            $this->conn->beginTransaction();
+        }
+
+        try {
+            $staffStmt = $this->conn->prepare("INSERT INTO staff_management (staff_name, staff_email, staff_role, staff_phone, staff_shift, staff_salary, staff_status) VALUES (?, ?, ?, ?, ?, ?, ?)");
+            $staffStmt->execute([$account['name'], $account['email'], $designation, $phone, $shift, (float)$salary, $status]);
+
+            $userStmt = $this->conn->prepare("UPDATE users SET password_hash = ?, role = 'staff', phone = ?, salary = ?, status = ?, is_active = 1 WHERE id = ? AND role = 'customer'");
+            $userStmt->execute([password_hash($password, PASSWORD_DEFAULT), $phone, (float)$salary, $status, (int)$account['id']]);
+
+            if ($startedTransaction) {
+                $this->conn->commit();
+            }
+
+            return $userStmt->rowCount() === 1;
+        } catch (Throwable $exception) {
+            if ($startedTransaction && $this->conn->inTransaction()) {
+                $this->conn->rollBack();
+            }
+            throw $exception;
+        }
+    }
+
     public function updateStaff($id, $name, $email, $salary, $role, $phone, $shift, $status) {
         $allowedStatus = ['on_duty', 'on_leave', 'removed'];
         if (!in_array($status, $allowedStatus, true)) {
