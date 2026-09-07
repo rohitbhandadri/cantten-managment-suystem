@@ -19,12 +19,24 @@ class AuthController {
         if ($user['role'] !== $expectedRole) {
             return ['success' => false, 'message' => "This account is not registered as $expectedRole."];
         }
+        $staff = null;
+        if ($user['role'] === 'staff') {
+            $staff = $this->userModel->getStaffForUser($user['id']);
+            if (!$staff) {
+                return ['success' => false, 'message' => 'This staff account has no active staff profile.'];
+            }
+        }
         session_regenerate_id(true);
         $_SESSION['user_id'] = $user['id'];
         $_SESSION['name'] = $user['name'];
         $_SESSION['role'] = $user['role'];
+        unset($_SESSION['staff_id'], $_SESSION['staff_role']);
+        if ($staff) {
+            $_SESSION['staff_id'] = (int)$staff['id'];
+            $_SESSION['staff_role'] = $staff['staff_role'];
+        }
         $this->userModel->updateLastLogin($user['id']);
-        return ['success' => true, 'role' => $user['role']];
+        return ['success' => true, 'role' => $user['role'], 'staff_role' => $staff['staff_role'] ?? null];
     }
 
     public function register($name, $email, $password, $phone) {
