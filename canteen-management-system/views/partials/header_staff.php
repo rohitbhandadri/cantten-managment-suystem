@@ -6,7 +6,7 @@ $current = basename($_SERVER['PHP_SELF']);
         <div class="avatar-circle">👤</div>
         <div>
             <strong><?= e($_SESSION['name'] ?? 'Staff') ?></strong>
-            <div class="muted small">Canteen Staff</div>
+            <div class="muted small"><?= e(ucwords(currentStaffRole() ?: 'Staff')) ?></div>
         </div>
     </div>
 
