@@ -256,7 +256,7 @@ class User {
         return $stmt->fetchAll(PDO::FETCH_ASSOC);
     }
 
-    public function listActiveAccounts($role = 'all') {
+    public function listActiveAccounts($role = 'all', $searchTerm = '') {
         $sql = "SELECT u.id, u.name, u.username, u.email, u.phone, u.role, u.status, u.is_active, u.last_login_at, u.created_at,
                     sm.staff_role, sm.staff_shift
                 FROM users u
@@ -267,6 +267,15 @@ class User {
         if (in_array($role, ['customer', 'staff'], true)) {
             $sql .= " AND u.role = ?";
             $params[] = $role;
+        }
+
+        $searchTerm = trim($searchTerm);
+        if ($searchTerm !== '') {
+            $sql .= " AND (u.name LIKE ? OR u.email LIKE ? OR u.username LIKE ?)";
+            $searchPattern = '%' . $searchTerm . '%';
+            $params[] = $searchPattern;
+            $params[] = $searchPattern;
+            $params[] = $searchPattern;
         }
 
         $sql .= " ORDER BY u.role ASC, u.name ASC";
