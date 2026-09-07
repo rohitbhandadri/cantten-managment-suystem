@@ -4,7 +4,7 @@ require_once __DIR__ . '/../../config/database.php';
 require_once __DIR__ . '/../../models/User.php';
 require_once __DIR__ . '/../../controllers/OrderController.php';
 require_once __DIR__ . '/../../controllers/ReservationController.php';
-requireLogin();
+requireCustomer();
 
 $database = new Database();
 $db = $database->connect();
