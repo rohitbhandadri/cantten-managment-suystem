@@ -15,7 +15,8 @@ $current = basename($_SERVER['PHP_SELF']);
     <nav class="sidebar-nav">
         <a href="<?= BASE_URL ?>/views/admin/dashboard.php" class="<?= $current === 'dashboard.php' ? 'active' : '' ?>">📊 Dashboard</a>
         <a href="<?= BASE_URL ?>/views/admin/inventory.php" class="<?= $current === 'inventory.php' ? 'active' : '' ?>">📦 Inventory</a>
-        <a href="<?= BASE_URL ?>/views/admin/staff_management.php" class="<?= $current === 'staff_management.php' ? 'active' : '' ?>">👥 My Staff</a>
+        <a href="<?= BASE_URL ?>/views/admin/staff_management.php" class="<?= $current === 'staff_management.php' ? 'active' : '' ?>">👥 Staff Accounts</a>
+        <a href="<?= BASE_URL ?>/views/admin/account_management.php" class="<?= $current === 'account_management.php' ? 'active' : '' ?>">🔐 Account Management</a>
         <a href="<?= BASE_URL ?>/views/admin/staff_payroll.php" class="<?= $current === 'staff_payroll.php' ? 'active' : '' ?>">💰 Staff Salary</a>
         <a href="<?= BASE_URL ?>/views/admin/menu_management.php" class="<?= $current === 'menu_management.php' ? 'active' : '' ?>">🍽️ Menu Management</a>
         <a href="<?= BASE_URL ?>/views/admin/orders.php" class="<?= $current === 'orders.php' ? 'active' : '' ?>">🧾 Orders</a>
