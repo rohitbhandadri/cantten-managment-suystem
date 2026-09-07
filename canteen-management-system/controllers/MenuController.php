@@ -16,6 +16,7 @@ class MenuController {
     }
 
     public function listAll() {
+        requireAdmin();
         return $this->menuItemModel->all(false);
     }
 
@@ -24,21 +25,25 @@ class MenuController {
     }
 
     public function create($data, $imagePath) {
+        requireAdmin();
         $data['image'] = $imagePath;
         $data['is_active'] = isset($data['is_active']) ? 1 : 0;
         return $this->menuItemModel->create($data);
     }
 
     public function update($id, $data) {
+        requireAdmin();
         $data['is_active'] = isset($data['is_active']) ? 1 : 0;
         $this->menuItemModel->update($id, $data);
     }
 
     public function toggle($id) {
+        requireAdmin();
         $this->menuItemModel->toggleAvailability($id);
     }
 
     public function delete($id) {
+        requireAdmin();
         $this->menuItemModel->delete($id);
     }
 }
