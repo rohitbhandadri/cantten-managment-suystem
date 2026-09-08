@@ -64,6 +64,18 @@ class StaffWorkspace {
             FOREIGN KEY (order_id) REFERENCES orders(id) ON DELETE CASCADE,
             FOREIGN KEY (cashier_staff_id) REFERENCES staff_management(id) ON DELETE RESTRICT
         )");
+        $this->conn->exec("CREATE TABLE IF NOT EXISTS transactions (
+            id INT AUTO_INCREMENT PRIMARY KEY,
+            order_id INT NOT NULL,
+            transaction_uuid VARCHAR(100) NOT NULL UNIQUE,
+            amount DECIMAL(10,2) NOT NULL,
+            status ENUM('PENDING','PAID','FAILED') NOT NULL DEFAULT 'PENDING',
+            payment_ref VARCHAR(150) NULL,
+            cashier_id INT NULL,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (order_id) REFERENCES orders(id) ON DELETE CASCADE,
+            FOREIGN KEY (cashier_id) REFERENCES staff_management(id) ON DELETE RESTRICT
+        )");
         $this->conn->exec("CREATE TABLE IF NOT EXISTS waiter_workspace (
             staff_id INT PRIMARY KEY,
             assigned_section VARCHAR(80) NULL,
@@ -110,7 +122,7 @@ class StaffWorkspace {
     private function provisionWorkspace($staff) {
         $role = strtolower(trim((string)($staff['staff_role'] ?? '')));
         $role = str_replace(['_', '-'], ' ', $role);
-        $aliases = ['chef' => 'chef', 'cook' => 'chef', 'service staff' => 'waiter', 'server' => 'waiter', 'waiter' => 'waiter', 'cashier' => 'cashier', 'inventory manager' => 'inventory', 'inventory' => 'inventory', 'finance' => 'finance', 'accountant' => 'finance'];
+        $aliases = ['manager' => 'cashier', 'admin' => 'cashier', 'chef' => 'chef', 'cook' => 'chef', 'service staff' => 'waiter', 'server' => 'waiter', 'waiter' => 'waiter', 'cashier' => 'cashier', 'inventory manager' => 'inventory', 'inventory' => 'inventory', 'finance' => 'finance', 'accountant' => 'finance'];
         $table = $aliases[$role] ?? null;
         if ($table === null) {
             return;
@@ -123,7 +135,7 @@ class StaffWorkspace {
         $this->provisionWorkspace($staff);
         $role = strtolower(trim((string)($staff['staff_role'] ?? '')));
         $role = str_replace(['_', '-'], ' ', $role);
-        $aliases = ['chef' => 'chef', 'cook' => 'chef', 'service staff' => 'waiter', 'server' => 'waiter', 'waiter' => 'waiter', 'cashier' => 'cashier', 'inventory manager' => 'inventory', 'inventory' => 'inventory', 'finance' => 'finance', 'accountant' => 'finance'];
+        $aliases = ['manager' => 'cashier', 'admin' => 'cashier', 'chef' => 'chef', 'cook' => 'chef', 'service staff' => 'waiter', 'server' => 'waiter', 'waiter' => 'waiter', 'cashier' => 'cashier', 'inventory manager' => 'inventory', 'inventory' => 'inventory', 'finance' => 'finance', 'accountant' => 'finance'];
         $table = $aliases[$role] ?? null;
         if ($table === null) {
             return null;
@@ -247,7 +259,8 @@ class StaffWorkspace {
             (SELECT GROUP_CONCAT(CONCAT(oi.quantity, ' x ', mi.name) ORDER BY mi.name SEPARATOR ', ')
                 FROM order_items oi INNER JOIN menu_items mi ON mi.id = oi.menu_item_id WHERE oi.order_id = o.id) AS item_summary
             FROM orders o LEFT JOIN cashier_transactions ct ON ct.order_id = o.id AND ct.status = 'paid'
-            WHERE o.status IN ('pending', 'preparing', 'ready') AND ct.id IS NULL
+            LEFT JOIN transactions et ON et.order_id = o.id AND et.status IN ('PENDING', 'PAID')
+            WHERE o.status IN ('pending', 'preparing', 'ready') AND ct.id IS NULL AND et.id IS NULL
             ORDER BY o.order_at ASC LIMIT ?");
         $stmt->bindValue(1, max(1, (int)$limit), PDO::PARAM_INT);
         $stmt->execute();
@@ -269,6 +282,8 @@ class StaffWorkspace {
             }
             $insert = $this->conn->prepare("INSERT INTO cashier_transactions (order_id, cashier_staff_id, amount, payment_method) VALUES (?, ?, ?, ?)");
             $insert->execute([(int)$order['id'], (int)$cashierStaffId, (float)$order['total_amount'], $paymentMethod]);
+            $payment = $this->conn->prepare("INSERT INTO payments (order_id, method, status, transaction_ref, amount, paid_at) VALUES (?, ?, 'success', ?, ?, NOW())");
+            $payment->execute([(int)$order['id'], $paymentMethod, strtoupper($paymentMethod) . '-' . bin2hex(random_bytes(4)), (float)$order['total_amount']]);
             $update = $this->conn->prepare("UPDATE orders SET status = 'completed', served_by_staff_id = ? WHERE id = ? AND status IN ('pending', 'preparing', 'ready')");
             $update->execute([(int)$cashierStaffId, (int)$order['id']]);
             if ($update->rowCount() !== 1) {
@@ -300,7 +315,8 @@ class StaffWorkspace {
         if (!staffHasRole(['cashier', 'finance'])) {
             return ['cash' => 0, 'card' => 0, 'system_total' => 0];
         }
-        $stmt = $this->conn->query("SELECT payment_method, COALESCE(SUM(amount), 0) AS total FROM cashier_transactions WHERE status = 'paid' AND DATE(paid_at) = CURDATE() GROUP BY payment_method");
+        $stmt = $this->conn->prepare("SELECT payment_method, COALESCE(SUM(amount), 0) AS total FROM cashier_transactions WHERE status = 'paid' AND DATE(paid_at) = CURDATE() GROUP BY payment_method");
+        $stmt->execute();
         $summary = ['cash' => 0, 'card' => 0, 'system_total' => 0];
         foreach ($stmt->fetchAll(PDO::FETCH_ASSOC) as $row) {
             $summary[$row['payment_method']] = (float)$row['total'];
