@@ -1,5 +1,7 @@
 <?php
 if (session_status() === PHP_SESSION_NONE) {
+    ini_set('session.use_strict_mode', '1');
+    ini_set('session.use_only_cookies', '1');
     session_set_cookie_params([
         'httponly' => true,
         'samesite' => 'Lax',
@@ -57,7 +59,7 @@ function staffRoleIs($roles) {
 }
 
 function staffHasRole($roles) {
-    return staffRoleIs(['manager', 'admin']) || staffRoleIs($roles);
+    return isAdmin() || staffRoleIs(['manager', 'admin']) || staffRoleIs($roles);
 }
 
 function staffDashboardPath() {
@@ -82,15 +84,47 @@ function requireAdmin() {
     if (!isAdmin()) redirect(isStaff() ? 'views/staff/dashboard.php' : 'login.php');
 }
 
+function canManageMenu() {
+    return isAdmin() || staffRoleIs(['finance']);
+}
+
+function requireMenuManagement() {
+    if (!canManageMenu()) {
+        redirect(isLoggedIn() ? staffDashboardPath() : 'login.php');
+    }
+}
+
 function requireStaff() {
     if (!isStaff()) redirect('staff_login.php');
 }
 
 function requireStaffRole($roles) {
+    if (isAdmin()) {
+        return;
+    }
     requireStaff();
     if (!staffHasRole($roles)) {
         redirect('views/staff/dashboard.php');
     }
+}
+
+function canAccessCashierPayments() {
+    return isAdmin() || staffRoleIs(['cashier']);
+}
+
+function requireCashierPayments() {
+    if (!canAccessCashierPayments()) {
+        redirect(isLoggedIn() ? staffDashboardPath() : 'staff_login.php');
+    }
+}
+
+function esewaConfig() {
+    return [
+        'merchant_code' => getenv('CANTEEN_ESEWA_MERCHANT_CODE') ?: 'EPAYTEST',
+        'secret_key' => getenv('CANTEEN_ESEWA_SECRET_KEY') ?: '',
+        'payment_url' => getenv('CANTEEN_ESEWA_PAYMENT_URL') ?: 'https://rc-epay.esewa.com.np/api/epay/main/v2/form',
+        'status_url' => getenv('CANTEEN_ESEWA_STATUS_URL') ?: 'https://rc-epay.esewa.com.np/api/epay/transaction/status/',
+    ];
 }
 
 function requireCustomer() {
@@ -114,4 +148,19 @@ function flash($key, $msg = null) {
         return $val;
     }
     return null;
+}
+
+function csrfToken($key = 'csrf_token') {
+    if (empty($_SESSION[$key])) {
+        $_SESSION[$key] = bin2hex(random_bytes(32));
+    }
+    return $_SESSION[$key];
+}
+
+function csrfField($key = 'csrf_token') {
+    return '<input type="hidden" name="' . e($key) . '" value="' . e(csrfToken($key)) . '">';
+}
+
+function verifyCsrf($key = 'csrf_token') {
+    return !empty($_SESSION[$key]) && hash_equals($_SESSION[$key], (string)($_POST[$key] ?? ''));
 }
