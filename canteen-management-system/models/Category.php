@@ -8,7 +8,9 @@ class Category {
     }
 
     public function all() {
-        return $this->conn->query("SELECT * FROM {$this->table} ORDER BY name")->fetchAll(PDO::FETCH_ASSOC);
+        $stmt = $this->conn->prepare("SELECT * FROM categories ORDER BY name");
+        $stmt->execute();
+        return $stmt->fetchAll(PDO::FETCH_ASSOC);
     }
 
     public function create($name) {
