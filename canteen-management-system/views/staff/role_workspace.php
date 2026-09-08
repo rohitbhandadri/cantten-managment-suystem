@@ -29,6 +29,7 @@ if (empty($_SESSION['staff_workspace_csrf'])) {
 $csrfToken = $_SESSION['staff_workspace_csrf'];
 $message = '';
 $error = $_SESSION['payment_error'] ?? '';
+$reviewLink = '';
 unset($_SESSION['payment_error']);
 $role = normalizeStaffRole($workspaceRole);
 
@@ -60,7 +61,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 exit;
             }
         } else {
-            $message = $workspace->finalizeCashierBill($_POST['order_id'] ?? 0, $paymentMethod, $staff['id']) ? 'Bill finalized and order marked paid.' : 'This order could not be finalized.';
+            $finalized = $workspace->finalizeCashierBill($_POST['order_id'] ?? 0, $paymentMethod, $staff['id']);
+            $message = $finalized ? 'Bill finalized and order marked paid.' : 'This order could not be finalized.';
+            if ($finalized) {
+                $reviewToken = $workspace->reviewTokenForOrder($_POST['order_id'] ?? 0);
+                $reviewLink = BASE_URL . '/views/customer/review.php?token=' . rawurlencode($reviewToken);
+            }
         }
     }
 }
@@ -108,6 +114,7 @@ $allowedQueueStatuses = $role === 'cook' ? ['preparing', 'ready'] : ['completed'
 
     <?php if ($message): ?><div class="alert alert-success"><?= e($message) ?></div><?php endif; ?>
     <?php if ($error): ?><div class="alert alert-error"><?= e($error) ?></div><?php endif; ?>
+    <?php if ($reviewLink): ?><div class="card"><h2>Would you like to rate your experience?</h2><a class="btn-primary" href="<?= e($reviewLink) ?>&mode=rate">Rate now</a> <a class="btn-secondary" href="<?= e($reviewLink) ?>&mode=skip">Skip</a></div><?php endif; ?>
 
     <div class="stat-grid">
         <div class="stat-card"><span class="muted small">My rating</span><h2><?= number_format($rating, 1) ?> / 5</h2><span class="muted small"><?= count($reviews) ?> review(s)</span></div>
