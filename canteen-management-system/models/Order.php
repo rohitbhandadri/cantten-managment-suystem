@@ -61,9 +61,15 @@ class Order {
     }
 
     public function todayStats() {
-        $revenue = $this->conn->query("SELECT COALESCE(SUM(total_amount),0) FROM {$this->table} WHERE DATE(order_at) = CURDATE() AND status <> 'cancelled'")->fetchColumn();
-        $totalOrders = $this->conn->query("SELECT COUNT(*) FROM {$this->table} WHERE DATE(order_at) = CURDATE()")->fetchColumn();
-        $pending = $this->conn->query("SELECT COUNT(*) FROM {$this->table} WHERE DATE(order_at) = CURDATE() AND status = 'pending'")->fetchColumn();
+        $stmt = $this->conn->prepare("SELECT COALESCE(SUM(total_amount),0) FROM orders WHERE DATE(order_at) = CURDATE() AND status <> 'cancelled'");
+        $stmt->execute();
+        $revenue = $stmt->fetchColumn();
+        $stmt = $this->conn->prepare("SELECT COUNT(*) FROM orders WHERE DATE(order_at) = CURDATE()");
+        $stmt->execute();
+        $totalOrders = $stmt->fetchColumn();
+        $stmt = $this->conn->prepare("SELECT COUNT(*) FROM orders WHERE DATE(order_at) = CURDATE() AND status = 'pending'");
+        $stmt->execute();
+        $pending = $stmt->fetchColumn();
         return ['revenue' => $revenue, 'total_orders' => $totalOrders, 'pending' => $pending];
     }
 
