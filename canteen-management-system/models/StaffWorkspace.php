@@ -298,8 +298,10 @@ class StaffWorkspace {
     }
 
     public function financeSummary($from, $to) {
-        $revenueStmt = $this->conn->prepare("SELECT COALESCE(SUM(o.total_amount), 0) FROM orders o INNER JOIN payments p ON p.order_id = o.id AND p.status = 'success' WHERE DATE(o.order_at) BETWEEN ? AND ? AND o.status <> 'cancelled'");
-        $revenueStmt->execute([$from, $to]);
+        $revenueStmt = $this->conn->prepare("SELECT
+            COALESCE((SELECT SUM(ct.amount) FROM cashier_transactions ct WHERE ct.status = 'paid' AND DATE(ct.paid_at) BETWEEN ? AND ?), 0)
+            + COALESCE((SELECT SUM(p.amount) FROM payments p INNER JOIN orders po ON po.id = p.order_id LEFT JOIN cashier_transactions pct ON pct.order_id = p.order_id AND pct.status = 'paid' WHERE p.status = 'success' AND pct.id IS NULL AND DATE(COALESCE(p.paid_at, po.order_at)) BETWEEN ? AND ? AND po.status <> 'cancelled'), 0)");
+        $revenueStmt->execute([$from, $to, $from, $to]);
         $costStmt = $this->conn->prepare("SELECT department, COALESCE(SUM(amount), 0) AS total FROM operating_costs WHERE cost_date BETWEEN ? AND ? GROUP BY department ORDER BY total DESC");
         $costStmt->execute([$from, $to]);
         $byDepartment = $costStmt->fetchAll(PDO::FETCH_ASSOC);
