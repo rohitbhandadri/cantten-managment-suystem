@@ -64,6 +64,73 @@ class StaffWorkspace {
             FOREIGN KEY (order_id) REFERENCES orders(id) ON DELETE CASCADE,
             FOREIGN KEY (cashier_staff_id) REFERENCES staff_management(id) ON DELETE RESTRICT
         )");
+        $this->conn->exec("CREATE TABLE IF NOT EXISTS waiter_workspace (
+            staff_id INT PRIMARY KEY,
+            assigned_section VARCHAR(80) NULL,
+            workspace_status ENUM('active','inactive') NOT NULL DEFAULT 'active',
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+            FOREIGN KEY (staff_id) REFERENCES staff_management(id) ON DELETE CASCADE
+        )");
+        $this->conn->exec("CREATE TABLE IF NOT EXISTS chef_workspace (
+            staff_id INT PRIMARY KEY,
+            station VARCHAR(80) NULL,
+            workspace_status ENUM('active','inactive') NOT NULL DEFAULT 'active',
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+            FOREIGN KEY (staff_id) REFERENCES staff_management(id) ON DELETE CASCADE
+        )");
+        $this->conn->exec("CREATE TABLE IF NOT EXISTS cashier_workspace (
+            staff_id INT PRIMARY KEY,
+            opening_float DECIMAL(10,2) NOT NULL DEFAULT 0,
+            shift_status ENUM('open','closed') NOT NULL DEFAULT 'open',
+            workspace_status ENUM('active','inactive') NOT NULL DEFAULT 'active',
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+            FOREIGN KEY (staff_id) REFERENCES staff_management(id) ON DELETE CASCADE
+        )");
+        $this->conn->exec("CREATE TABLE IF NOT EXISTS inventory_workspace (
+            staff_id INT PRIMARY KEY,
+            storage_area VARCHAR(100) NULL,
+            workspace_status ENUM('active','inactive') NOT NULL DEFAULT 'active',
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+            FOREIGN KEY (staff_id) REFERENCES staff_management(id) ON DELETE CASCADE
+        )");
+        $this->conn->exec("CREATE TABLE IF NOT EXISTS finance_workspace (
+            staff_id INT PRIMARY KEY,
+            reporting_period ENUM('today','week','month') NOT NULL DEFAULT 'month',
+            workspace_status ENUM('active','inactive') NOT NULL DEFAULT 'active',
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+            FOREIGN KEY (staff_id) REFERENCES staff_management(id) ON DELETE CASCADE
+        )");
+    }
+
+    private function provisionWorkspace($staff) {
+        $role = strtolower(trim((string)($staff['staff_role'] ?? '')));
+        $role = str_replace(['_', '-'], ' ', $role);
+        $aliases = ['chef' => 'chef', 'cook' => 'chef', 'service staff' => 'waiter', 'server' => 'waiter', 'waiter' => 'waiter', 'cashier' => 'cashier', 'inventory manager' => 'inventory', 'inventory' => 'inventory', 'finance' => 'finance', 'accountant' => 'finance'];
+        $table = $aliases[$role] ?? null;
+        if ($table === null) {
+            return;
+        }
+        $stmt = $this->conn->prepare("INSERT IGNORE INTO {$table}_workspace (staff_id) VALUES (?)");
+        $stmt->execute([(int)$staff['id']]);
+    }
+
+    public function workspaceForStaff($staff) {
+        $this->provisionWorkspace($staff);
+        $role = strtolower(trim((string)($staff['staff_role'] ?? '')));
+        $role = str_replace(['_', '-'], ' ', $role);
+        $aliases = ['chef' => 'chef', 'cook' => 'chef', 'service staff' => 'waiter', 'server' => 'waiter', 'waiter' => 'waiter', 'cashier' => 'cashier', 'inventory manager' => 'inventory', 'inventory' => 'inventory', 'finance' => 'finance', 'accountant' => 'finance'];
+        $table = $aliases[$role] ?? null;
+        if ($table === null) {
+            return null;
+        }
+        $stmt = $this->conn->prepare("SELECT * FROM {$table}_workspace WHERE staff_id = ? AND workspace_status = 'active' LIMIT 1");
+        $stmt->execute([(int)$staff['id']]);
+        return $stmt->fetch(PDO::FETCH_ASSOC) ?: null;
     }
 
     public function currentStaff($userId) {
@@ -74,7 +141,11 @@ class StaffWorkspace {
             INNER JOIN users u ON u.email = sm.staff_email AND u.role = 'staff'
             WHERE u.id = ? AND sm.is_active = 1 AND sm.deleted_at IS NULL LIMIT 1");
         $stmt->execute([(int)$userId]);
-        return $stmt->fetch(PDO::FETCH_ASSOC);
+        $staff = $stmt->fetch(PDO::FETCH_ASSOC);
+        if ($staff) {
+            $this->provisionWorkspace($staff);
+        }
+        return $staff;
     }
 
     public function directory($department = '', $role = '') {
