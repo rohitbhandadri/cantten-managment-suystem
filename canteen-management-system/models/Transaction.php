@@ -37,7 +37,7 @@ class Transaction {
     }
 
     public function findByUuid($transactionUuid) {
-        $stmt = $this->conn->prepare("SELECT t.*, o.order_number, o.table_number, o.status AS order_status, o.total_amount, o.order_at FROM transactions t INNER JOIN orders o ON o.id = t.order_id WHERE t.transaction_uuid = ? LIMIT 1");
+        $stmt = $this->conn->prepare("SELECT t.*, o.order_number, o.table_number, o.public_review_token, o.status AS order_status, o.total_amount, o.order_at FROM transactions t INNER JOIN orders o ON o.id = t.order_id WHERE t.transaction_uuid = ? LIMIT 1");
         $stmt->execute([$transactionUuid]);
         return $stmt->fetch(PDO::FETCH_ASSOC);
     }
