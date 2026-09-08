@@ -2,15 +2,23 @@
 require_once __DIR__ . '/../../config/config.php';
 require_once __DIR__ . '/../../config/database.php';
 require_once __DIR__ . '/../../models/StaffWorkspace.php';
+require_once __DIR__ . '/../../models/Ingredient.php';
+require_once __DIR__ . '/../../controllers/EsewaController.php';
 
 $database = new Database();
 $db = $database->connect();
 $workspace = new StaffWorkspace($db);
-$staff = $workspace->currentStaff($_SESSION['user_id']);
+$ingredientModel = new Ingredient($db);
+$staff = isAdmin() ? [
+    'id' => 0,
+    'staff_name' => $_SESSION['name'] ?? 'Admin',
+    'department' => 'Management',
+    'staff_shift' => 'All day',
+] : $workspace->currentStaff($_SESSION['user_id']);
 if (!$staff) {
     redirect('staff_login.php');
 }
-$workspaceRecord = $workspace->workspaceForStaff($staff);
+$workspaceRecord = isAdmin() ? ['workspace_status' => 'active'] : $workspace->workspaceForStaff($staff);
 if (!$workspaceRecord) {
     redirect('views/staff/dashboard.php');
 }
@@ -20,7 +28,8 @@ if (empty($_SESSION['staff_workspace_csrf'])) {
 }
 $csrfToken = $_SESSION['staff_workspace_csrf'];
 $message = '';
-$error = '';
+$error = $_SESSION['payment_error'] ?? '';
+unset($_SESSION['payment_error']);
 $role = normalizeStaffRole($workspaceRole);
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
@@ -40,7 +49,19 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     } elseif (isset($_POST['cost_add'])) {
         $message = $workspace->addCost($_POST['category'] ?? '', $_POST['department'] ?? '', $_POST['amount'] ?? 0, $_POST['cost_date'] ?? '', $_POST['notes'] ?? '') ? 'Cost recorded.' : 'Enter valid cost details.';
     } elseif (isset($_POST['cashier_finalize'])) {
-        $message = $workspace->finalizeCashierBill($_POST['order_id'] ?? 0, $_POST['payment_method'] ?? '', $staff['id']) ? 'Bill finalized and order marked paid.' : 'This order could not be finalized.';
+        $paymentMethod = $_POST['payment_method'] ?? '';
+        if ($paymentMethod === 'esewa' && $role === 'cashier') {
+            $esewa = new EsewaController($db);
+            $payment = $esewa->begin($_POST['order_id'] ?? 0, $staff['id']);
+            if (!$payment['success']) {
+                $error = $payment['message'];
+            } else {
+                echo $esewa->renderRedirectForm($payment);
+                exit;
+            }
+        } else {
+            $message = $workspace->finalizeCashierBill($_POST['order_id'] ?? 0, $paymentMethod, $staff['id']) ? 'Bill finalized and order marked paid.' : 'This order could not be finalized.';
+        }
     }
 }
 
@@ -51,6 +72,7 @@ $rating = (float)($staff['performance_average'] ?? 0);
 $queue = in_array($role, ['waiter', 'cook'], true) || staffHasRole(['manager', 'admin']) ? $workspace->queue() : [];
 $deliveries = $role === 'inventory' || staffHasRole(['manager', 'admin']) ? $workspace->deliveries() : [];
 $stock = $role === 'inventory' || staffHasRole(['manager', 'admin']) ? $workspace->stockLevels() : [];
+$ingredientStock = $role === 'inventory' || staffHasRole(['manager', 'admin']) ? $ingredientModel->all() : [];
 $cashierOrders = $role === 'cashier' || staffHasRole(['manager', 'admin']) ? $workspace->cashierOrders() : [];
 $transactions = in_array($role, ['cashier', 'finance'], true) || staffHasRole(['manager', 'admin']) ? $workspace->cashierTransactionsToday() : [];
 $reconciliation = in_array($role, ['cashier', 'finance'], true) || staffHasRole(['manager', 'admin']) ? $workspace->cashierReconciliation() : ['cash' => 0, 'card' => 0, 'system_total' => 0];
@@ -114,13 +136,14 @@ $allowedQueueStatuses = $role === 'cook' ? ['preparing', 'ready'] : ['completed'
             <?php if ($role === 'cashier'): ?>
             <div class="card staff-feature-panel"><div class="staff-toolbar"><div><h2>Open orders for billing</h2><p class="muted small">Finalize a bill when payment is received.</p></div></div>
                 <table class="data-table"><thead><tr><th>Order</th><th>Table</th><th>Items</th><th>Status</th><th>Total</th><th>Payment</th></tr></thead><tbody>
-                <?php foreach ($cashierOrders as $order): ?><tr><td>#<?= e($order['order_number']) ?></td><td><?= e($order['table_number'] ?: 'Takeaway') ?></td><td><?= e($order['item_summary']) ?></td><td><span class="status-pill status-<?= e($order['status']) ?>"><?= e(ucfirst($order['status'])) ?></span></td><td>$<?= number_format((float)$order['total_amount'], 2) ?></td><td><form method="POST" class="row-between"><input type="hidden" name="csrf_token" value="<?= e($csrfToken) ?>"><input type="hidden" name="order_id" value="<?= (int)$order['id'] ?>"><select name="payment_method"><option value="cash">Cash</option><option value="card">Card</option></select><button class="btn-small btn-primary" name="cashier_finalize">Mark paid</button></form></td></tr><?php endforeach; ?>
+                <?php foreach ($cashierOrders as $order): ?><tr><td>#<?= e($order['order_number']) ?></td><td><?= e($order['table_number'] ?: 'Takeaway') ?></td><td><?= e($order['item_summary']) ?></td><td><span class="status-pill status-<?= e($order['status']) ?>"><?= e(ucfirst($order['status'])) ?></span></td><td>$<?= number_format((float)$order['total_amount'], 2) ?></td><td><form method="POST" class="row-between"><input type="hidden" name="csrf_token" value="<?= e($csrfToken) ?>"><input type="hidden" name="order_id" value="<?= (int)$order['id'] ?>"><select name="payment_method"><option value="cash">Cash</option><option value="card">Card</option><option value="esewa">eSewa</option></select><button class="btn-small btn-primary" name="cashier_finalize">Take payment</button></form></td></tr><?php endforeach; ?>
                 <?php if (!$cashierOrders): ?><tr><td colspan="6" class="muted center">No open orders ready for billing.</td></tr><?php endif; ?></tbody></table>
             </div>
             <div class="card staff-feature-panel"><div class="staff-toolbar"><div><h2>Today's reconciliation</h2><p class="muted small">Completed cashier transactions.</p></div></div><div class="finance-summary"><div><span class="muted small">Cash</span><strong>$<?= number_format($reconciliation['cash'], 2) ?></strong></div><div><span class="muted small">Card</span><strong>$<?= number_format($reconciliation['card'], 2) ?></strong></div><div><span class="muted small">System total</span><strong>$<?= number_format($reconciliation['system_total'], 2) ?></strong></div></div><table class="data-table"><thead><tr><th>Time</th><th>Table</th><th>Amount</th><th>Method</th></tr></thead><tbody><?php foreach ($transactions as $transaction): ?><tr><td><?= date('g:i A', strtotime($transaction['paid_at'])) ?></td><td><?= e($transaction['table_number'] ?: 'Takeaway') ?></td><td>$<?= number_format((float)$transaction['amount'], 2) ?></td><td><?= e(ucfirst($transaction['payment_method'])) ?></td></tr><?php endforeach; ?></tbody></table></div>
             <?php endif; ?>
 
             <?php if ($role === 'inventory'): ?>
+            <div class="card staff-feature-panel"><div class="staff-toolbar"><div><h2>Ingredient stock</h2><p class="muted small">Order deductions update these quantities immediately.</p></div></div><table class="data-table"><thead><tr><th>Ingredient</th><th>Unit</th><th>Current</th><th>Reorder level</th><th>Status</th></tr></thead><tbody><?php foreach ($ingredientStock as $ingredient): $low = (float)$ingredient['current_stock'] <= (float)$ingredient['reorder_level']; ?><tr><td><?= e($ingredient['name']) ?></td><td><?= e($ingredient['unit']) ?></td><td><?= e($ingredient['current_stock']) ?></td><td><?= e($ingredient['reorder_level']) ?></td><td><span class="status-pill <?= $low ? 'status-cancelled' : 'status-ready' ?>"><?= $low ? 'Low stock' : 'Healthy' ?></span></td></tr><?php endforeach; ?><?php if (!$ingredientStock): ?><tr><td colspan="5" class="muted center">No ingredient records yet.</td></tr><?php endif; ?></tbody></table></div>
             <div class="card staff-feature-panel"><div class="staff-toolbar"><div><h2>Current stock</h2><p class="muted small">Low-stock items are shown first.</p></div></div><table class="data-table"><thead><tr><th>Item</th><th>Category</th><th>Current</th><th>Reorder level</th><th>Status</th></tr></thead><tbody><?php foreach ($stock as $item): $low = (int)$item['current_stock'] <= (int)$item['reorder_level']; ?><tr><td><?= e($item['name']) ?></td><td><?= e($item['category_name'] ?? '') ?></td><td><?= (int)$item['current_stock'] ?></td><td><?= (int)$item['reorder_level'] ?></td><td><span class="status-pill <?= $low ? 'status-cancelled' : 'status-ready' ?>"><?= $low ? 'Low stock' : 'Healthy' ?></span></td></tr><?php endforeach; ?></tbody></table></div>
             <div class="card staff-feature-panel"><div class="staff-toolbar"><div><h2>Receiving log</h2><p class="muted small">Record incoming stock and mark it received.</p></div></div><form method="POST" class="grid-form staff-inline-form"><input type="hidden" name="csrf_token" value="<?= e($csrfToken) ?>"><input name="supplier" placeholder="Supplier" required><input name="items_received" placeholder="Items received" required><input type="number" name="quantity" min="1" placeholder="Quantity" required><button class="btn-primary" name="delivery_add">Add delivery</button></form><table class="data-table"><thead><tr><th>Supplier</th><th>Items</th><th>Qty</th><th>Status</th><th>Time</th><th>Action</th></tr></thead><tbody><?php foreach ($deliveries as $delivery): ?><tr><td><?= e($delivery['supplier']) ?></td><td><?= e($delivery['items_received']) ?></td><td><?= (int)$delivery['quantity'] ?></td><td><span class="status-pill status-<?= e($delivery['status']) ?>"><?= e(ucfirst($delivery['status'])) ?></span></td><td><?= date('M d, g:i A', strtotime($delivery['created_at'])) ?></td><td><?php if ($delivery['status'] === 'pending'): ?><form method="POST"><input type="hidden" name="csrf_token" value="<?= e($csrfToken) ?>"><input type="hidden" name="delivery_id" value="<?= (int)$delivery['id'] ?>"><button class="btn-small btn-confirm" name="delivery_receive">Mark received</button></form><?php else: ?><span class="muted small"><?= e($delivery['received_by_name'] ?? '') ?></span><?php endif; ?></td></tr><?php endforeach; ?></tbody></table></div>
             <?php endif; ?>
