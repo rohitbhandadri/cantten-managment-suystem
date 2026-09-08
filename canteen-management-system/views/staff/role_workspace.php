@@ -10,6 +10,10 @@ $staff = $workspace->currentStaff($_SESSION['user_id']);
 if (!$staff) {
     redirect('staff_login.php');
 }
+$workspaceRecord = $workspace->workspaceForStaff($staff);
+if (!$workspaceRecord) {
+    redirect('views/staff/dashboard.php');
+}
 
 if (empty($_SESSION['staff_workspace_csrf'])) {
     $_SESSION['staff_workspace_csrf'] = bin2hex(random_bytes(32));
