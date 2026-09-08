@@ -50,6 +50,7 @@ if (!$item) {
             </div>
 
             <form method="POST" action="<?= BASE_URL ?>/views/customer/cart.php" class="add-form">
+                <?= csrfField() ?>
                 <input type="hidden" name="item_id" value="<?= $item['id'] ?>">
                 <label>Quantity</label>
                 <input type="number" name="qty" value="1" min="1" max="<?= max(1,(int)$item['current_stock']) ?>">
