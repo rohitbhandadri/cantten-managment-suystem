@@ -8,11 +8,13 @@ class MenuItem {
     }
 
     public function all($onlyActive = false) {
-        $sql = "SELECT mi.*, c.name AS category_name FROM {$this->table} mi
+        $sql = "SELECT mi.*, c.name AS category_name FROM menu_items mi
                 LEFT JOIN categories c ON mi.category_id = c.id";
         if ($onlyActive) $sql .= " WHERE mi.is_active = 1";
         $sql .= " ORDER BY mi.id DESC";
-        return $this->conn->query($sql)->fetchAll(PDO::FETCH_ASSOC);
+        $stmt = $this->conn->prepare($sql);
+        $stmt->execute();
+        return $stmt->fetchAll(PDO::FETCH_ASSOC);
     }
 
     public function find($id) {
@@ -67,19 +69,27 @@ class MenuItem {
     }
 
     public function counts() {
-        $total = $this->conn->query("SELECT COUNT(*) FROM {$this->table}")->fetchColumn();
-        $low = $this->conn->query("SELECT COUNT(*) FROM {$this->table} WHERE current_stock <= reorder_level AND current_stock > 0")->fetchColumn();
-        $unavailable = $this->conn->query("SELECT COUNT(*) FROM {$this->table} WHERE is_active = 0")->fetchColumn();
+        $stmt = $this->conn->prepare("SELECT COUNT(*) FROM menu_items");
+        $stmt->execute();
+        $total = $stmt->fetchColumn();
+        $stmt = $this->conn->prepare("SELECT COUNT(*) FROM menu_items WHERE current_stock <= reorder_level AND current_stock > 0");
+        $stmt->execute();
+        $low = $stmt->fetchColumn();
+        $stmt = $this->conn->prepare("SELECT COUNT(*) FROM menu_items WHERE is_active = 0");
+        $stmt->execute();
+        $unavailable = $stmt->fetchColumn();
         return ['total' => $total, 'low' => $low, 'unavailable' => $unavailable];
     }
 
     public function lowStock() {
-        $stmt = $this->conn->query("SELECT * FROM {$this->table} WHERE current_stock <= reorder_level ORDER BY current_stock ASC LIMIT 5");
+        $stmt = $this->conn->prepare("SELECT * FROM menu_items WHERE current_stock <= reorder_level ORDER BY current_stock ASC LIMIT 5");
+        $stmt->execute();
         return $stmt->fetchAll(PDO::FETCH_ASSOC);
     }
 
     public function reorderQueue() {
-        $stmt = $this->conn->query("SELECT * FROM {$this->table} WHERE current_stock <= reorder_level AND is_active = 1 ORDER BY current_stock ASC, name ASC");
+        $stmt = $this->conn->prepare("SELECT * FROM menu_items WHERE current_stock <= reorder_level AND is_active = 1 ORDER BY current_stock ASC, name ASC");
+        $stmt->execute();
         return $stmt->fetchAll(PDO::FETCH_ASSOC);
     }
 
