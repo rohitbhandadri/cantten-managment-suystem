@@ -10,6 +10,30 @@ class User {
         $this->ensureUserCredentialsSchema();
         $this->ensureUserRoleSchema();
         $this->ensureStaffTableSchema();
+        $this->conn->exec("CREATE TABLE IF NOT EXISTS auth_login_attempts (
+            identifier VARCHAR(190) PRIMARY KEY,
+            failed_count INT NOT NULL DEFAULT 0,
+            locked_until DATETIME NULL,
+            last_attempt_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+        )");
+    }
+
+    public function loginAllowed($identifier) {
+        $stmt = $this->conn->prepare("SELECT locked_until FROM auth_login_attempts WHERE identifier = ? LIMIT 1");
+        $stmt->execute([strtolower(trim($identifier))]);
+        $lockedUntil = $stmt->fetchColumn();
+        return !$lockedUntil || strtotime($lockedUntil) <= time();
+    }
+
+    public function recordLoginFailure($identifier) {
+        $identifier = strtolower(trim($identifier));
+        $stmt = $this->conn->prepare("INSERT INTO auth_login_attempts (identifier, failed_count, locked_until) VALUES (?, 1, NULL) ON DUPLICATE KEY UPDATE failed_count = failed_count + 1, locked_until = IF(failed_count + 1 >= 5, DATE_ADD(NOW(), INTERVAL 15 MINUTE), locked_until), last_attempt_at = NOW()");
+        $stmt->execute([$identifier]);
+    }
+
+    public function clearLoginFailures($identifier) {
+        $stmt = $this->conn->prepare("DELETE FROM auth_login_attempts WHERE identifier = ?");
+        $stmt->execute([strtolower(trim($identifier))]);
     }
 
     private function columnExists($column) {
@@ -288,7 +312,8 @@ class User {
     }
 
     public function countActiveCustomers() {
-        $stmt = $this->conn->query("SELECT COUNT(*) FROM {$this->table} WHERE role = 'customer'");
+        $stmt = $this->conn->prepare("SELECT COUNT(*) FROM users WHERE role = 'customer'");
+        $stmt->execute();
         return $stmt->fetchColumn();
     }
 
