@@ -9,6 +9,10 @@ $db = $database->connect();
 $admin = new AdminController($db);
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    if (!verifyCsrf()) {
+        flash('error', 'Security token expired. Please try again.');
+        redirect('views/admin/inventory.php');
+    }
     if (isset($_POST['reorder_item_id'])) {
         $admin->autoReorder((int)$_POST['reorder_item_id']);
         redirect('views/admin/inventory.php');
@@ -51,7 +55,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 }
 
 $data = $admin->dashboardData();
-$items = $db->query("SELECT mi.*, c.name AS category_name FROM menu_items mi LEFT JOIN categories c ON mi.category_id = c.id ORDER BY mi.name ASC")->fetchAll(PDO::FETCH_ASSOC);
+$itemsStmt = $db->prepare("SELECT mi.*, c.name AS category_name FROM menu_items mi LEFT JOIN categories c ON mi.category_id = c.id ORDER BY mi.name ASC");
+$itemsStmt->execute();
+$items = $itemsStmt->fetchAll(PDO::FETCH_ASSOC);
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -97,6 +103,7 @@ $items = $db->query("SELECT mi.*, c.name AS category_name FROM menu_items mi LEF
                         <div class="muted small">Current stock: <?= (int)$item['current_stock'] ?> · Reorder level: <?= (int)$item['reorder_level'] ?></div>
                     </div>
                     <form method="POST" style="display:inline">
+                        <?= csrfField() ?>
                         <input type="hidden" name="reorder_item_id" value="<?= (int)$item['id'] ?>">
                         <button type="submit" class="btn-small btn-primary">Restock +<?= (int)$item['reorder_level'] + 10 ?></button>
                     </form>
@@ -139,6 +146,7 @@ $items = $db->query("SELECT mi.*, c.name AS category_name FROM menu_items mi LEF
                     <td>
                         <div class="reservation-actions">
                             <form method="POST" style="display:inline">
+                                <?= csrfField() ?>
                                 <input type="hidden" name="adjust_item_id" value="<?= (int)$item['id'] ?>">
                                 <input type="number" name="adjust_qty" min="-1000" value="10" style="width:70px; padding:6px; margin-right:6px; border:1px solid var(--border); border-radius:6px;">
                                 <button type="submit" class="btn-small btn-primary">Adjust</button>
@@ -146,6 +154,7 @@ $items = $db->query("SELECT mi.*, c.name AS category_name FROM menu_items mi LEF
                         </div>
                         <div class="reservation-actions" style="margin-top:8px;">
                             <form method="POST" style="display:inline">
+                                <?= csrfField() ?>
                                 <input type="hidden" name="reorder_level_item_id" value="<?= (int)$item['id'] ?>">
                                 <input type="number" name="reorder_level" min="0" value="<?= (int)$item['reorder_level'] ?>" style="width:70px; padding:6px; margin-right:6px; border:1px solid var(--border); border-radius:6px;">
                                 <button type="submit" class="btn-small btn-secondary">Set Level</button>
