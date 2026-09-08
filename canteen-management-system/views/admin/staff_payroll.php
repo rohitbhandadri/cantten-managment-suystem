@@ -9,7 +9,7 @@ $db = $database->connect();
 $userModel = new User($db);
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-    if (isset($_POST['staff_id'], $_POST['deduction_amount'])) {
+    if (verifyCsrf() && isset($_POST['staff_id'], $_POST['deduction_amount'])) {
         $staffId = (int)$_POST['staff_id'];
         $amount = max((float)$_POST['deduction_amount'], 0);
 
@@ -79,6 +79,7 @@ $staffCount = $userModel->countByRole('staff');
                     <td>$<?= number_format(min((float)($staff['salary'] ?? 0) * 0.05, 200), 2) ?></td>
                     <td>
                         <form method="POST" style="display:flex; gap:8px; align-items:center;">
+                            <?= csrfField() ?>
                             <input type="hidden" name="staff_id" value="<?= (int)$staff['id'] ?>">
                             <input type="number" step="0.01" min="0" name="deduction_amount" value="<?= number_format(min((float)($staff['salary'] ?? 0) * 0.05, 200), 2, '.', '') ?>" style="width:100px; padding:6px; border:1px solid var(--border); border-radius:6px;">
                             <button type="submit" class="btn-small btn-primary">Deduct</button>
