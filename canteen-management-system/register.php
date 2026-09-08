@@ -9,21 +9,25 @@ $auth = new AuthController($db);
 
 $error = '';
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-    $name = trim($_POST['name'] ?? '');
-    $email = trim($_POST['email'] ?? '');
-    $phone = trim($_POST['phone'] ?? '');
-    $password = $_POST['password'] ?? '';
-
-    if ($name && $email && $password) {
-        $result = $auth->register($name, $email, $password, $phone);
-        if ($result['success']) {
-            flash('success', 'Account created! Please sign in.');
-            redirect('login.php');
-        } else {
-            $error = $result['message'];
-        }
+    if (!verifyCsrf()) {
+        $error = 'Your registration form expired. Please try again.';
     } else {
-        $error = 'Please fill in all required fields.';
+        $name = trim($_POST['name'] ?? '');
+        $email = trim($_POST['email'] ?? '');
+        $phone = trim($_POST['phone'] ?? '');
+        $password = $_POST['password'] ?? '';
+
+        if ($name && $email && $password) {
+            $result = $auth->register($name, $email, $password, $phone);
+            if ($result['success']) {
+                flash('success', 'Account created! Please sign in.');
+                redirect('login.php');
+            } else {
+                $error = $result['message'];
+            }
+        } else {
+            $error = 'Please fill in all required fields.';
+        }
     }
 }
 ?>
@@ -52,6 +56,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             <?php endif; ?>
 
             <form method="POST" action="register.php">
+                <?= csrfField() ?>
                 <label>Full Name</label>
                 <input type="text" name="name" placeholder="Jane Doe" required value="<?= e($_POST['name'] ?? '') ?>">
 
