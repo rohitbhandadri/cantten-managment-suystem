@@ -13,7 +13,7 @@ $time = $_GET['time'] ?? '12:00';
 $guests = $_GET['guests'] ?? 2;
 $message = '';
 
-if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && verifyCsrf()) {
     $date = $_POST['date'];
     $time = $_POST['time'];
     $guests = (int)$_POST['guests'];
@@ -69,6 +69,7 @@ foreach ($myReservations as $reservation) {
             </form>
 
             <form method="POST" id="book-form">
+                <?= csrfField() ?>
                 <input type="hidden" name="date" value="<?= e($date) ?>">
                 <input type="hidden" name="time" value="<?= e($time) ?>">
                 <input type="hidden" name="guests" value="<?= e($guests) ?>">
