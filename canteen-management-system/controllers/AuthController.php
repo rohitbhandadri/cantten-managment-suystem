@@ -9,14 +9,20 @@ class AuthController {
     }
 
     public function login($email, $password, $expectedRole) {
+        if (!$this->userModel->loginAllowed($email)) {
+            return ['success' => false, 'message' => 'Too many failed attempts. Please try again in 15 minutes.'];
+        }
         $user = $this->userModel->findByLogin($email);
         if (!$user || !password_verify($password, $user['password_hash'])) {
+            $this->userModel->recordLoginFailure($email);
             return ['success' => false, 'message' => 'Invalid email or password.'];
         }
         if (($user['is_active'] ?? 1) != 1 || ($user['status'] ?? '') === 'removed') {
+            $this->userModel->recordLoginFailure($email);
             return ['success' => false, 'message' => 'This account is inactive. Please contact an administrator.'];
         }
         if ($user['role'] !== $expectedRole) {
+            $this->userModel->recordLoginFailure($email);
             return ['success' => false, 'message' => "This account is not registered as $expectedRole."];
         }
         $staff = null;
@@ -26,6 +32,7 @@ class AuthController {
                 return ['success' => false, 'message' => 'This staff account has no active staff profile.'];
             }
         }
+        $this->userModel->clearLoginFailures($email);
         session_regenerate_id(true);
         $_SESSION['user_id'] = $user['id'];
         $_SESSION['name'] = $user['name'];
