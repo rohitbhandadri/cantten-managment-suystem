@@ -21,6 +21,7 @@ if (empty($items)) {
 
 $subtotal = $cart->subtotal();
 $promoCode = trim($_SESSION['checkout_promo_code'] ?? '');
+$defaultTableNumber = trim($_SESSION['order_table_number'] ?? '');
 $promoClaim = $promoCode ? $promo->findValidForUser($_SESSION['user_id'], $promoCode) : null;
 $discountAmount = $promoClaim ? round($subtotal * ((int)$promoClaim['discount_percent'] / 100), 2) : 0;
 $taxableSubtotal = $subtotal - $discountAmount;
@@ -31,12 +32,15 @@ $total = $taxableSubtotal + $tax + $serviceFee;
 $step = $_SESSION['checkout_order_id'] ?? null ? 'verify' : 'select';
 $error = '';
 
-if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && verifyCsrf()) {
     if (isset($_POST['place_order'])) {
         // Step 1: create order + payment record, "send OTP"
         $method = $_POST['method'] ?? 'esewa';
         $orderType = $_POST['order_type'] ?? 'takeaway';
         $tableNumber = trim($_POST['table_number'] ?? '');
+        if ($defaultTableNumber !== '') {
+            $tableNumber = $defaultTableNumber;
+        }
         if (!in_array($orderType, ['takeaway', 'dine-in'], true)) {
             $orderType = 'takeaway';
         }
@@ -119,6 +123,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
             <?php if ($step === 'select'): ?>
             <form method="POST" class="card">
+                <?= csrfField() ?>
                 <h3>Select Payment Method</h3>
                 <label for="promo-code">Promo Code</label>
                 <div class="promo-input-row">
@@ -127,11 +132,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 <p class="muted small">Enter the code you claimed from CanteenPro.</p>
                 <label for="order-type">Order type</label>
                 <select name="order_type" id="order-type">
-                    <option value="takeaway">Takeaway</option>
-                    <option value="dine-in">Dine-in</option>
+                    <option value="takeaway" <?= $defaultTableNumber === '' ? 'selected' : '' ?>>Takeaway</option>
+                    <option value="dine-in" <?= $defaultTableNumber !== '' ? 'selected' : '' ?>>Dine-in</option>
                 </select>
                 <label for="table-number">Table number <span class="muted small">(for dine-in)</span></label>
-                <input type="text" id="table-number" name="table_number" maxlength="20" placeholder="T1">
+                <input type="text" id="table-number" name="table_number" maxlength="20" placeholder="T1" value="<?= e($defaultTableNumber) ?>" <?= $defaultTableNumber !== '' ? 'readonly' : '' ?>>
                 <div class="payment-methods">
                     <label class="payment-option">
                         <input type="radio" name="method" value="esewa" checked>
@@ -154,6 +159,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         <div>
             <?php if ($step === 'verify'): ?>
             <form method="POST">
+                <?= csrfField() ?>
                 <div class="card verify-card">
                     <div class="section-header">
                         <h3>🛡 Verification</h3>
