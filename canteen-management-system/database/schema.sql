@@ -124,9 +124,12 @@ CREATE TABLE orders (
     special_instructions TEXT,
     table_number VARCHAR(20) DEFAULT NULL,
     served_by_staff_id INT DEFAULT NULL,
+    prepared_by_staff_id INT DEFAULT NULL,
+    public_review_token CHAR(64) NOT NULL UNIQUE,
     order_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
-    FOREIGN KEY (served_by_staff_id) REFERENCES staff_management(id) ON DELETE SET NULL
+    FOREIGN KEY (served_by_staff_id) REFERENCES staff_management(id) ON DELETE SET NULL,
+    FOREIGN KEY (prepared_by_staff_id) REFERENCES staff_management(id) ON DELETE SET NULL
 );
 
 CREATE TABLE order_items (
@@ -167,7 +170,7 @@ CREATE TABLE payments (
 CREATE TABLE staff_ratings (
     id INT AUTO_INCREMENT PRIMARY KEY,
     staff_id INT NOT NULL,
-    customer_id INT NOT NULL,
+    customer_id INT NULL,
     order_id INT NULL,
     rating TINYINT UNSIGNED NOT NULL,
     comment TEXT NULL,
@@ -176,6 +179,14 @@ CREATE TABLE staff_ratings (
     FOREIGN KEY (staff_id) REFERENCES staff_management(id) ON DELETE CASCADE,
     FOREIGN KEY (customer_id) REFERENCES users(id) ON DELETE CASCADE,
     FOREIGN KEY (order_id) REFERENCES orders(id) ON DELETE SET NULL
+);
+
+CREATE TABLE customer_review_decisions (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    order_id INT NOT NULL UNIQUE,
+    decision ENUM('skipped','completed') NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (order_id) REFERENCES orders(id) ON DELETE CASCADE
 );
 
 CREATE TABLE inventory_logs (
