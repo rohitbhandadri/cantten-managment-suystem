@@ -8,7 +8,9 @@ class TableModel {
     }
 
     public function all() {
-        return $this->conn->query("SELECT * FROM {$this->table} WHERE is_active = 1 ORDER BY table_number")->fetchAll(PDO::FETCH_ASSOC);
+        $stmt = $this->conn->prepare("SELECT * FROM tables_ WHERE is_active = 1 ORDER BY table_number");
+        $stmt->execute();
+        return $stmt->fetchAll(PDO::FETCH_ASSOC);
     }
 }
 
@@ -73,13 +75,14 @@ class Reservation {
     }
 
     public function all() {
-        $stmt = $this->conn->query("SELECT r.*, u.name AS customer_name, u.email AS customer_email,
+        $stmt = $this->conn->prepare("SELECT r.*, u.name AS customer_name, u.email AS customer_email,
                 t.table_number, t.location
                 FROM {$this->table} r
                 JOIN users u ON r.user_id = u.id
                 JOIN tables_ t ON r.table_id = t.id
                 ORDER BY CASE WHEN r.status = 'pending' THEN 0 WHEN r.status = 'confirmed' THEN 1 ELSE 2 END,
                     r.reservation_date ASC, r.start_time ASC");
+            $stmt->execute();
         return $stmt->fetchAll(PDO::FETCH_ASSOC);
     }
 
