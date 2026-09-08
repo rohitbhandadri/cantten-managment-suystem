@@ -4,10 +4,17 @@ require_once __DIR__ . '/../../config/database.php';
 require_once __DIR__ . '/../../controllers/MenuController.php';
 require_once __DIR__ . '/../../models/Order.php';
 require_once __DIR__ . '/../../models/Promo.php';
-requireCustomer();
+require_once __DIR__ . '/../../models/TableQrCode.php';
 
 $database = new Database();
 $db = $database->connect();
+$tableQrCode = new TableQrCode($db);
+$qrTable = $tableQrCode->resolve($_GET['table'] ?? '', $_GET['qr'] ?? '');
+if ($qrTable) {
+    $_SESSION['order_table_number'] = $qrTable;
+}
+requireCustomer();
+
 $menuController = new MenuController($db);
 $items = $menuController->listActive();
 $categories = $menuController->categoryModel->all();
@@ -24,7 +31,7 @@ if ($mostOrdered) {
 $promo = new Promo($db);
 $promoClaim = $promo->findByUser($_SESSION['user_id']);
 
-if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['claim_offer'])) {
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['claim_offer']) && verifyCsrf()) {
     $promoClaim = $promo->claimForUser($_SESSION['user_id']);
 }
 ?>
@@ -52,6 +59,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['claim_offer'])) {
             </div>
         <?php else: ?>
             <form method="POST">
+                <?= csrfField() ?>
                 <button type="submit" name="claim_offer" class="btn-accent">Claim Offer</button>
             </form>
         <?php endif; ?>
@@ -105,6 +113,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['claim_offer'])) {
                         <a href="<?= BASE_URL ?>/views/customer/menu_item.php?id=<?= $item['id'] ?>" class="link small">View details</a>
                     </div>
                     <form method="POST" action="<?= BASE_URL ?>/views/customer/cart.php">
+                        <?= csrfField() ?>
                         <input type="hidden" name="item_id" value="<?= $item['id'] ?>">
                         <input type="hidden" name="qty" value="1">
                         <button type="submit" name="add_to_cart" class="btn-primary btn-block" <?= $item['current_stock'] <= 0 ? 'disabled' : '' ?>>
