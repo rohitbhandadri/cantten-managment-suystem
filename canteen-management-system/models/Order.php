@@ -5,20 +5,48 @@ class Order {
 
     public function __construct($db) {
         $this->conn = $db;
+        $this->ensureReviewColumns();
+    }
+
+    private function ensureReviewColumns() {
+        $columns = [
+            'prepared_by_staff_id' => "ALTER TABLE orders ADD COLUMN prepared_by_staff_id INT NULL AFTER served_by_staff_id",
+            'public_review_token' => "ALTER TABLE orders ADD COLUMN public_review_token CHAR(64) NULL AFTER prepared_by_staff_id",
+        ];
+        foreach ($columns as $column => $sql) {
+            $check = $this->conn->prepare("SELECT COUNT(*) FROM information_schema.columns WHERE table_schema = DATABASE() AND table_name = 'orders' AND column_name = ?");
+            $check->execute([$column]);
+            if ((int)$check->fetchColumn() === 0) {
+                $this->conn->exec($sql);
+            }
+        }
+        $this->conn->exec("UPDATE orders SET public_review_token = SHA2(CONCAT(id, '-', order_number, '-', UUID()), 256) WHERE public_review_token IS NULL");
+        try {
+            $this->conn->exec("ALTER TABLE orders MODIFY COLUMN public_review_token CHAR(64) NOT NULL UNIQUE");
+        } catch (PDOException $exception) {
+            // Existing installations may already have a compatible unique key.
+        }
     }
 
     public function create($userId, $subtotal, $tax, $serviceFee, $total, $orderType = 'takeaway', $instructions = '', $discountAmount = 0, $promoCode = null, $tableNumber = null) {
         $orderNumber = 'ORD-' . strtoupper(substr(uniqid(), -6));
-        $stmt = $this->conn->prepare("INSERT INTO {$this->table}
-            (order_number, user_id, status, order_type, subtotal, discount_amount, promo_code, tax, service_fee, total_amount, special_instructions, table_number)
-            VALUES (?, ?, 'pending', ?, ?, ?, ?, ?, ?, ?, ?, ?) ");
-        $stmt->execute([$orderNumber, $userId, $orderType, $subtotal, $discountAmount, $promoCode, $tax, $serviceFee, $total, $instructions, $tableNumber]);
+        $publicReviewToken = bin2hex(random_bytes(32));
+        $stmt = $this->conn->prepare("INSERT INTO orders
+            (order_number, user_id, status, order_type, subtotal, discount_amount, promo_code, tax, service_fee, total_amount, special_instructions, table_number, public_review_token)
+            VALUES (?, ?, 'pending', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) ");
+        $stmt->execute([$orderNumber, $userId, $orderType, $subtotal, $discountAmount, $promoCode, $tax, $serviceFee, $total, $instructions, $tableNumber, $publicReviewToken]);
         return $this->conn->lastInsertId();
     }
 
     public function find($id) {
         $stmt = $this->conn->prepare("SELECT * FROM {$this->table} WHERE id = ?");
         $stmt->execute([$id]);
+        return $stmt->fetch(PDO::FETCH_ASSOC);
+    }
+
+    public function findByPublicReviewToken($token) {
+        $stmt = $this->conn->prepare("SELECT * FROM orders WHERE public_review_token = ? LIMIT 1");
+        $stmt->execute([trim((string)$token)]);
         return $stmt->fetch(PDO::FETCH_ASSOC);
     }
 
