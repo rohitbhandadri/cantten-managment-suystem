@@ -9,6 +9,9 @@ $database = new Database();
 $db = $database->connect();
 $orderController = new OrderController($db);
 $staffRatingModel = new StaffRating($db);
+$activeStaffStmt = $db->prepare("SELECT id, staff_name, staff_role FROM staff_management WHERE is_active = 1 AND deleted_at IS NULL AND staff_status <> 'removed' ORDER BY staff_name");
+$activeStaffStmt->execute();
+$activeStaff = $activeStaffStmt->fetchAll(PDO::FETCH_ASSOC);
 $order = $orderController->getOrder((int)($_GET['id'] ?? 0));
 
 if (!$order || $order['user_id'] != $_SESSION['user_id']) {
@@ -22,9 +25,9 @@ if (empty($_SESSION['review_csrf_token'])) {
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['submit_review'])) {
     if (!hash_equals($_SESSION['review_csrf_token'], (string)($_POST['csrf_token'] ?? ''))) {
         $reviewMessage = 'Your review form expired. Please try again.';
-    } elseif (!$order['served_by_staff_id'] || $order['status'] !== 'completed') {
+    } elseif ($order['status'] !== 'completed') {
         $reviewMessage = 'This order is not ready for a review yet.';
-    } elseif ($staffRatingModel->add((int)$order['served_by_staff_id'], (int)$_SESSION['user_id'], (int)$order['id'], (int)($_POST['rating'] ?? 0), $_POST['comment'] ?? '')) {
+    } elseif ($staffRatingModel->add((int)($_POST['staff_id'] ?? $order['served_by_staff_id']), (int)$_SESSION['user_id'], (int)$order['id'], (int)($_POST['rating'] ?? 0), $_POST['comment'] ?? '')) {
         $reviewMessage = 'Thanks for reviewing the staff service.';
     } else {
         $reviewMessage = 'This order has already been reviewed or the review is invalid.';
@@ -33,13 +36,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['submit_review'])) {
 
 $statusSteps = ['pending' => 1, 'preparing' => 2, 'ready' => 3, 'completed' => 4];
 $currentStep = $statusSteps[$order['status']] ?? 1;
-$statusLabel = ['pending' => 'Order Received', 'preparing' => 'Preparing Your Order', 'ready' => 'Ready for Pickup', 'completed' => 'Completed', 'cancelled' => 'Order Cancelled'];
+$statusLabel = ['pending' => 'New', 'preparing' => 'Cooking', 'ready' => 'Ready', 'completed' => 'Served', 'cancelled' => 'Order Cancelled'];
 $isCancelled = $order['status'] === 'cancelled';
 ?>
 <!DOCTYPE html>
 <html lang="en">
 <head>
 <meta charset="UTF-8">
+<?php if (!in_array($order['status'], ['completed', 'cancelled'], true)): ?><meta http-equiv="refresh" content="10"><?php endif; ?>
 <title>Order Tracking - CanteenPro</title>
 <link rel="stylesheet" href="<?= BASE_URL ?>/public/css/style.css">
 </head>
@@ -83,13 +87,14 @@ $isCancelled = $order['status'] === 'cancelled';
     </div>
     <?php endif; ?>
 
-    <?php if ($order['status'] === 'completed' && $order['served_by_staff_id']): ?>
+    <?php if ($order['status'] === 'completed'): ?>
         <div class="card review-form-card">
             <h3>Rate your service</h3>
             <?php if ($reviewMessage): ?><div class="alert alert-success"><?= e($reviewMessage) ?></div><?php endif; ?>
             <form method="POST" class="grid-form">
                 <input type="hidden" name="csrf_token" value="<?= e($_SESSION['review_csrf_token']) ?>">
                 <div><label for="rating">Rating</label><select name="rating" id="rating" required><option value="5">5 - Excellent</option><option value="4">4 - Very good</option><option value="3">3 - Good</option><option value="2">2 - Fair</option><option value="1">1 - Poor</option></select></div>
+                <div><label for="staff_id">Staff member</label><select name="staff_id" id="staff_id" required><?php foreach ($activeStaff as $staffMember): ?><option value="<?= (int)$staffMember['id'] ?>" <?= (int)$staffMember['id'] === (int)$order['served_by_staff_id'] ? 'selected' : '' ?>><?= e($staffMember['staff_name']) ?> (<?= e($staffMember['staff_role']) ?>)</option><?php endforeach; ?></select></div>
                 <div class="full-width"><label for="comment">Comment</label><textarea name="comment" id="comment" rows="3" maxlength="1000" placeholder="Tell us about the service..."></textarea></div>
                 <div><button class="btn-primary" name="submit_review">Submit review</button></div>
             </form>
