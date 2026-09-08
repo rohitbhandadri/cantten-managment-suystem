@@ -36,6 +36,7 @@ if (!$transaction || $transaction['status'] !== 'PAID') {
         <div class="row-between"><span>Paid at</span><strong><?= e($transaction['created_at']) ?></strong></div>
         <hr>
         <p class="muted small">Payment independently confirmed with eSewa transaction status API.</p>
+        <div class="card"><h2>Would you like to rate your experience?</h2><a class="btn-primary" href="<?= BASE_URL ?>/views/customer/review.php?token=<?= rawurlencode($transaction['public_review_token']) ?>&mode=rate">Rate now</a> <a class="btn-secondary" href="<?= BASE_URL ?>/views/customer/review.php?token=<?= rawurlencode($transaction['public_review_token']) ?>&mode=skip">Skip</a></div>
         <a href="<?= BASE_URL ?>/views/staff/cashier.php" class="btn-primary">Back to Cashier workspace</a>
     </section>
 </main>
