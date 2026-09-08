@@ -11,7 +11,9 @@ $menuController = new MenuController($db);
 $cart = new CartController();
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-    if (isset($_POST['add_to_cart'])) {
+    if (!verifyCsrf()) {
+        flash('error', 'Your cart form expired. Please try again.');
+    } elseif (isset($_POST['add_to_cart'])) {
         $item = $menuController->get((int)$_POST['item_id']);
         if ($item) {
             $cart->add($item['id'], (int)$_POST['qty'], $item['name'], $item['price']);
@@ -55,6 +57,7 @@ $total = $subtotal + $tax + $serviceFee;
                         <strong><?= e($item['name']) ?></strong>
                         <div class="price"><?= '$' . number_format($item['price'], 2) ?></div>
                         <form method="POST" class="qty-form">
+                            <?= csrfField() ?>
                             <input type="hidden" name="item_id" value="<?= $item['id'] ?>">
                             <button type="submit" name="update_qty" value="<?= $item['qty'] - 1 ?>" class="qty-btn">-</button>
                             <input type="text" readonly value="<?= $item['qty'] ?>" class="qty-display">
@@ -62,6 +65,7 @@ $total = $subtotal + $tax + $serviceFee;
                         </form>
                     </div>
                     <form method="POST">
+                        <?= csrfField() ?>
                         <input type="hidden" name="item_id" value="<?= $item['id'] ?>">
                         <button type="submit" name="remove_item" class="link-danger">🗑 Remove</button>
                     </form>
