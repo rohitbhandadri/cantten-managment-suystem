@@ -4,7 +4,9 @@ require_once __DIR__ . '/../../config/database.php';
 require_once __DIR__ . '/../../models/StaffWorkspace.php';
 requireStaff();
 
-redirect(staffDashboardPath());
+if (staffDashboardPath() !== 'views/staff/dashboard.php') {
+    redirect(staffDashboardPath());
+}
 
 $database = new Database();
 $db = $database->connect();
