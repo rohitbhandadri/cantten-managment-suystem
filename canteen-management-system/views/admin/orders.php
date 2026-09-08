@@ -8,7 +8,7 @@ $database = new Database();
 $db = $database->connect();
 $orderController = new OrderController($db);
 
-if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['order_id'])) {
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['order_id']) && verifyCsrf()) {
     $orderController->updateStatus((int)$_POST['order_id'], $_POST['status']);
     redirect('views/admin/orders.php');
 }
@@ -42,6 +42,7 @@ $orders = $orderController->recent(50);
                     <td><span class="status-pill status-<?= e($o['status']) ?>"><?= ucfirst($o['status']) ?></span></td>
                     <td>
                         <form method="POST" class="inline-form">
+                            <?= csrfField() ?>
                             <input type="hidden" name="order_id" value="<?= $o['id'] ?>">
                             <select name="status" onchange="this.form.submit()">
                                 <?php foreach (['pending','preparing','ready','completed','cancelled'] as $s): ?>
