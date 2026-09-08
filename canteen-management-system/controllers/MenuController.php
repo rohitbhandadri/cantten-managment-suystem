@@ -25,25 +25,25 @@ class MenuController {
     }
 
     public function create($data, $imagePath) {
-        requireAdmin();
+        requireMenuManagement();
         $data['image'] = $imagePath;
         $data['is_active'] = isset($data['is_active']) ? 1 : 0;
         return $this->menuItemModel->create($data);
     }
 
     public function update($id, $data) {
-        requireAdmin();
+        requireMenuManagement();
         $data['is_active'] = isset($data['is_active']) ? 1 : 0;
         $this->menuItemModel->update($id, $data);
     }
 
     public function toggle($id) {
-        requireAdmin();
+        requireMenuManagement();
         $this->menuItemModel->toggleAvailability($id);
     }
 
     public function delete($id) {
-        requireAdmin();
+        requireMenuManagement();
         $this->menuItemModel->delete($id);
     }
 }
