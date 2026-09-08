@@ -197,6 +197,52 @@ CREATE TABLE cashier_transactions (
     FOREIGN KEY (cashier_staff_id) REFERENCES staff_management(id) ON DELETE RESTRICT
 );
 
+CREATE TABLE waiter_workspace (
+    staff_id INT PRIMARY KEY,
+    assigned_section VARCHAR(80) NULL,
+    workspace_status ENUM('active','inactive') NOT NULL DEFAULT 'active',
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    FOREIGN KEY (staff_id) REFERENCES staff_management(id) ON DELETE CASCADE
+);
+
+CREATE TABLE chef_workspace (
+    staff_id INT PRIMARY KEY,
+    station VARCHAR(80) NULL,
+    workspace_status ENUM('active','inactive') NOT NULL DEFAULT 'active',
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    FOREIGN KEY (staff_id) REFERENCES staff_management(id) ON DELETE CASCADE
+);
+
+CREATE TABLE cashier_workspace (
+    staff_id INT PRIMARY KEY,
+    opening_float DECIMAL(10,2) NOT NULL DEFAULT 0,
+    shift_status ENUM('open','closed') NOT NULL DEFAULT 'open',
+    workspace_status ENUM('active','inactive') NOT NULL DEFAULT 'active',
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    FOREIGN KEY (staff_id) REFERENCES staff_management(id) ON DELETE CASCADE
+);
+
+CREATE TABLE inventory_workspace (
+    staff_id INT PRIMARY KEY,
+    storage_area VARCHAR(100) NULL,
+    workspace_status ENUM('active','inactive') NOT NULL DEFAULT 'active',
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    FOREIGN KEY (staff_id) REFERENCES staff_management(id) ON DELETE CASCADE
+);
+
+CREATE TABLE finance_workspace (
+    staff_id INT PRIMARY KEY,
+    reporting_period ENUM('today','week','month') NOT NULL DEFAULT 'month',
+    workspace_status ENUM('active','inactive') NOT NULL DEFAULT 'active',
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    FOREIGN KEY (staff_id) REFERENCES staff_management(id) ON DELETE CASCADE
+);
+
 -- Seed data
 INSERT INTO users (name, email, username, password_hash, role) VALUES
 ('Admin Central', 'admin@canteenpro.com', 'admincentral', '$2y$10$3otWoTSyvjc5qLYqwTsJfOLYtKeVUF2FTCWNToBUtR9rK1LABRXT6', 'admin');
