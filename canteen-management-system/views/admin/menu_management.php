@@ -2,7 +2,7 @@
 require_once __DIR__ . '/../../config/config.php';
 require_once __DIR__ . '/../../config/database.php';
 require_once __DIR__ . '/../../controllers/MenuController.php';
-requireAdmin();
+requireMenuManagement();
 
 $database = new Database();
 $db = $database->connect();
@@ -11,6 +11,10 @@ $menuController = new MenuController($db);
 $editItem = null;
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    if (!verifyCsrf()) {
+        flash('error', 'Security token expired. Please try again.');
+        redirect('views/admin/menu_management.php');
+    }
     if (isset($_POST['save_item'])) {
         $imagePath = null;
         if (!empty($_POST['item_id'])) {
@@ -93,6 +97,7 @@ $counts = $menuController->menuItemModel->counts();
     <div class="card">
         <h3><?= $editItem ? 'Edit Item' : 'New Menu Item' ?></h3>
         <form method="POST" enctype="multipart/form-data" class="grid-form">
+            <?= csrfField() ?>
             <?php if ($editItem): ?><input type="hidden" name="item_id" value="<?= $editItem['id'] ?>"><?php endif; ?>
             <div>
                 <label>Name</label>
@@ -155,6 +160,7 @@ $counts = $menuController->menuItemModel->counts();
                     <td class="<?= $item['current_stock'] <= $item['reorder_level'] ? 'danger' : '' ?>"><?= (int)$item['current_stock'] ?></td>
                     <td>
                         <form method="POST" style="display:inline">
+                            <?= csrfField() ?>
                             <input type="hidden" name="toggle_id" value="<?= $item['id'] ?>">
                             <button type="submit" class="toggle-switch <?= $item['is_active'] ? 'on' : '' ?>"></button>
                         </form>
@@ -162,6 +168,7 @@ $counts = $menuController->menuItemModel->counts();
                     <td>
                         <a href="?edit=<?= $item['id'] ?>" class="link small">Edit</a>
                         <form method="POST" style="display:inline" onsubmit="return confirm('Delete this item?')">
+                            <?= csrfField() ?>
                             <input type="hidden" name="delete_id" value="<?= $item['id'] ?>">
                             <button type="submit" class="link-danger small">Delete</button>
                         </form>
