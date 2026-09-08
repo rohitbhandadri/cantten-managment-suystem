@@ -8,12 +8,12 @@ $database = new Database();
 $db = $database->connect();
 $admin = new AdminController($db);
 
-if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['reservation_id'], $_POST['reservation_status'])) {
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && verifyCsrf() && isset($_POST['reservation_id'], $_POST['reservation_status'])) {
     $admin->updateReservationStatus((int)$_POST['reservation_id'], $_POST['reservation_status']);
     redirect('views/admin/dashboard.php');
 }
 
-if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['reorder_item_id'])) {
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && verifyCsrf() && isset($_POST['reorder_item_id'])) {
     $admin->autoReorder((int)$_POST['reorder_item_id']);
     redirect('views/admin/dashboard.php');
 }
@@ -34,6 +34,17 @@ $data = $admin->dashboardData();
     <header class="admin-topbar">
         <h1>Admin Console</h1>
     </header>
+
+    <div class="card">
+        <div class="staff-toolbar"><div><h2>Role workspaces</h2><p class="muted small">Review the live workspace for each operating role.</p></div><a href="<?= BASE_URL ?>/views/admin/transactions.php" class="btn-secondary btn-small">Transaction oversight</a></div>
+        <div class="category-row">
+            <a class="btn-secondary btn-small" href="<?= BASE_URL ?>/views/staff/waiter.php">Waiter</a>
+            <a class="btn-secondary btn-small" href="<?= BASE_URL ?>/views/staff/chef.php">Chef</a>
+            <a class="btn-secondary btn-small" href="<?= BASE_URL ?>/views/staff/cashier.php">Cashier</a>
+            <a class="btn-secondary btn-small" href="<?= BASE_URL ?>/views/staff/inventory.php">Inventory</a>
+            <a class="btn-secondary btn-small" href="<?= BASE_URL ?>/views/staff/finance.php">Finance</a>
+        </div>
+    </div>
 
     <h2>Overview</h2>
     <p class="muted">Today's metrics and recent activity.</p>
@@ -126,6 +137,7 @@ $data = $admin->dashboardData();
                         <div class="muted small">Stock: <?= (int)$item['current_stock'] ?> / Reorder level: <?= (int)$item['reorder_level'] ?></div>
                     </div>
                     <form method="POST" style="display:inline">
+                        <?= csrfField() ?>
                         <input type="hidden" name="reorder_item_id" value="<?= (int)$item['id'] ?>">
                         <button type="submit" class="btn-small btn-primary">Restock +<?= (int)$item['reorder_level'] + 10 ?></button>
                     </form>
@@ -160,6 +172,7 @@ $data = $admin->dashboardData();
                     <td>
                         <?php if ($reservation['status'] === 'pending'): ?>
                             <form method="POST" class="reservation-actions">
+                                <?= csrfField() ?>
                                 <input type="hidden" name="reservation_id" value="<?= (int)$reservation['id'] ?>">
                                 <button type="submit" name="reservation_status" value="confirmed" class="btn-small btn-confirm">Confirm Reservation</button>
                                 <button type="submit" name="reservation_status" value="cancelled" class="btn-small btn-cancel">Cancel Reservation</button>
