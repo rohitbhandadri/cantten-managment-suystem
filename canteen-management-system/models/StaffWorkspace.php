@@ -23,6 +23,18 @@ class StaffWorkspace {
         if (!$this->hasColumn('orders', 'served_by_staff_id')) {
             $this->conn->exec("ALTER TABLE orders ADD COLUMN served_by_staff_id INT DEFAULT NULL AFTER table_number");
         }
+        if (!$this->hasColumn('orders', 'prepared_by_staff_id')) {
+            $this->conn->exec("ALTER TABLE orders ADD COLUMN prepared_by_staff_id INT DEFAULT NULL AFTER served_by_staff_id");
+        }
+        if (!$this->hasColumn('orders', 'public_review_token')) {
+            $this->conn->exec("ALTER TABLE orders ADD COLUMN public_review_token CHAR(64) NULL AFTER prepared_by_staff_id");
+        }
+        $this->conn->exec("UPDATE orders SET public_review_token = SHA2(CONCAT(id, '-', order_number, '-', UUID()), 256) WHERE public_review_token IS NULL");
+        try {
+            $this->conn->exec("ALTER TABLE orders MODIFY COLUMN public_review_token CHAR(64) NOT NULL UNIQUE");
+        } catch (PDOException $exception) {
+            // Existing installations may already have the unique review token.
+        }
 
         $this->conn->exec("CREATE TABLE IF NOT EXISTS staff_tasks (
             id INT AUTO_INCREMENT PRIMARY KEY,
@@ -284,8 +296,8 @@ class StaffWorkspace {
             $insert->execute([(int)$order['id'], (int)$cashierStaffId, (float)$order['total_amount'], $paymentMethod]);
             $payment = $this->conn->prepare("INSERT INTO payments (order_id, method, status, transaction_ref, amount, paid_at) VALUES (?, ?, 'success', ?, ?, NOW())");
             $payment->execute([(int)$order['id'], $paymentMethod, strtoupper($paymentMethod) . '-' . bin2hex(random_bytes(4)), (float)$order['total_amount']]);
-            $update = $this->conn->prepare("UPDATE orders SET status = 'completed', served_by_staff_id = ? WHERE id = ? AND status IN ('pending', 'preparing', 'ready')");
-            $update->execute([(int)$cashierStaffId, (int)$order['id']]);
+            $update = $this->conn->prepare("UPDATE orders SET status = 'completed' WHERE id = ? AND status IN ('pending', 'preparing', 'ready')");
+            $update->execute([(int)$order['id']]);
             if ($update->rowCount() !== 1) {
                 $this->conn->rollBack();
                 return false;
@@ -298,6 +310,12 @@ class StaffWorkspace {
             }
             return false;
         }
+    }
+
+    public function reviewTokenForOrder($orderId) {
+        $stmt = $this->conn->prepare("SELECT public_review_token FROM orders WHERE id = ? LIMIT 1");
+        $stmt->execute([(int)$orderId]);
+        return (string)$stmt->fetchColumn();
     }
 
     public function cashierTransactionsToday() {
@@ -342,8 +360,13 @@ class StaffWorkspace {
         if (!$allowed) {
             return false;
         }
-        $stmt = $this->conn->prepare("UPDATE orders SET status = ?, served_by_staff_id = ? WHERE id = ? AND status = ?");
-        $stmt->execute([$status, (int)$staffId, (int)$orderId, $current]);
+        if (in_array($role, ['cook', 'chef'], true)) {
+            $stmt = $this->conn->prepare("UPDATE orders SET status = ?, prepared_by_staff_id = ? WHERE id = ? AND status = ?");
+            $stmt->execute([$status, (int)$staffId, (int)$orderId, $current]);
+        } else {
+            $stmt = $this->conn->prepare("UPDATE orders SET status = ?, served_by_staff_id = ? WHERE id = ? AND status = ?");
+            $stmt->execute([$status, (int)$staffId, (int)$orderId, $current]);
+        }
         return $stmt->rowCount() === 1;
     }
 
