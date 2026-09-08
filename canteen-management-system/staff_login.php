@@ -9,15 +9,19 @@ $auth = new AuthController($db);
 $error = '';
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-    $login = trim($_POST['login'] ?? '');
-    $password = $_POST['password'] ?? '';
-    $result = $auth->login($login, $password, 'staff');
+    if (!verifyCsrf()) {
+        $error = 'Your sign-in form expired. Please try again.';
+    } else {
+        $login = trim($_POST['login'] ?? '');
+        $password = $_POST['password'] ?? '';
+        $result = $auth->login($login, $password, 'staff');
 
-    if ($result['success']) {
-        redirect(staffDashboardPath());
+        if ($result['success']) {
+            redirect(staffDashboardPath());
+        }
+
+        $error = $result['message'];
     }
-
-    $error = $result['message'];
 }
 ?>
 <!DOCTYPE html>
@@ -45,6 +49,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             <?php endif; ?>
 
             <form method="POST" action="staff_login.php">
+                <?= csrfField() ?>
                 <label for="login">Staff ID or email</label>
                 <input id="login" type="text" name="login" placeholder="Enter your staff ID or email" required value="<?= e($_POST['login'] ?? '') ?>">
 
