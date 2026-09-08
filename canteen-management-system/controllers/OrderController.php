@@ -1,18 +1,21 @@
 <?php
 require_once __DIR__ . '/../models/Order.php';
 require_once __DIR__ . '/../models/MenuItem.php';
+require_once __DIR__ . '/../models/Ingredient.php';
 
 class OrderController {
     private $conn;
     private $orderModel;
     private $orderItemModel;
     private $menuItemModel;
+    private $ingredientModel;
 
     public function __construct($db) {
         $this->conn = $db;
         $this->orderModel = new Order($db);
         $this->orderItemModel = new OrderItem($db);
         $this->menuItemModel = new MenuItem($db);
+        $this->ingredientModel = new Ingredient($db);
     }
 
     public function placeOrder($userId, $cartItems, $orderType = 'takeaway', $instructions = '', $discountAmount = 0, $promoCode = null, $tableNumber = null) {
@@ -58,6 +61,7 @@ class OrderController {
             $serviceFee = 1.00;
             $total = $taxableSubtotal + $tax + $serviceFee;
             $orderId = $this->orderModel->create($userId, $subtotal, $tax, $serviceFee, $total, $orderType, $instructions, $discountAmount, $promoCode, $tableNumber);
+            $this->ingredientModel->reserveForOrder($validatedItems, $orderId);
             foreach ($validatedItems as $item) {
                 $this->orderItemModel->create($orderId, $item['id'], $item['price'], $item['qty']);
                 $this->menuItemModel->reduceStock($item['id'], $item['qty']);
