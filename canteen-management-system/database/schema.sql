@@ -17,6 +17,13 @@ CREATE TABLE users (
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
+CREATE TABLE auth_login_attempts (
+    identifier VARCHAR(190) PRIMARY KEY,
+    failed_count INT NOT NULL DEFAULT 0,
+    locked_until DATETIME NULL,
+    last_attempt_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
 CREATE TABLE staff_management (
     id INT AUTO_INCREMENT PRIMARY KEY,
     staff_name VARCHAR(150) NOT NULL,
@@ -53,12 +60,39 @@ CREATE TABLE menu_items (
     FOREIGN KEY (category_id) REFERENCES categories(id) ON DELETE SET NULL
 );
 
+CREATE TABLE ingredients (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    name VARCHAR(150) NOT NULL UNIQUE,
+    unit VARCHAR(30) NOT NULL DEFAULT 'unit',
+    current_stock DECIMAL(10,3) NOT NULL DEFAULT 0,
+    reorder_level DECIMAL(10,3) NOT NULL DEFAULT 0,
+    is_active TINYINT(1) NOT NULL DEFAULT 1,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE recipe_ingredients (
+    menu_item_id INT NOT NULL,
+    ingredient_id INT NOT NULL,
+    quantity_per_item DECIMAL(10,3) NOT NULL,
+    PRIMARY KEY (menu_item_id, ingredient_id),
+    FOREIGN KEY (menu_item_id) REFERENCES menu_items(id) ON DELETE CASCADE,
+    FOREIGN KEY (ingredient_id) REFERENCES ingredients(id) ON DELETE CASCADE
+);
+
 CREATE TABLE tables_ (
     id INT AUTO_INCREMENT PRIMARY KEY,
     table_number VARCHAR(20) NOT NULL,
     capacity INT NOT NULL,
     location VARCHAR(100),
     is_active TINYINT(1) DEFAULT 1
+);
+
+CREATE TABLE table_qr_codes (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    table_id INT NOT NULL UNIQUE,
+    token CHAR(32) NOT NULL UNIQUE,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (table_id) REFERENCES tables_(id) ON DELETE CASCADE
 );
 
 CREATE TABLE reservations (
@@ -104,6 +138,19 @@ CREATE TABLE order_items (
     total_price DECIMAL(10,2) NOT NULL,
     FOREIGN KEY (order_id) REFERENCES orders(id) ON DELETE CASCADE,
     FOREIGN KEY (menu_item_id) REFERENCES menu_items(id)
+);
+
+CREATE TABLE ingredient_inventory_logs (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    ingredient_id INT NOT NULL,
+    order_id INT NULL,
+    action VARCHAR(40) NOT NULL,
+    quantity DECIMAL(10,3) NOT NULL,
+    previous_stock DECIMAL(10,3) NOT NULL,
+    new_stock DECIMAL(10,3) NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (ingredient_id) REFERENCES ingredients(id) ON DELETE CASCADE,
+    FOREIGN KEY (order_id) REFERENCES orders(id) ON DELETE SET NULL
 );
 
 CREATE TABLE payments (
@@ -195,6 +242,30 @@ CREATE TABLE cashier_transactions (
     paid_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (order_id) REFERENCES orders(id) ON DELETE CASCADE,
     FOREIGN KEY (cashier_staff_id) REFERENCES staff_management(id) ON DELETE RESTRICT
+);
+
+CREATE TABLE transactions (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    order_id INT NOT NULL,
+    transaction_uuid VARCHAR(100) NOT NULL UNIQUE,
+    amount DECIMAL(10,2) NOT NULL,
+    status ENUM('PENDING','PAID','FAILED') NOT NULL DEFAULT 'PENDING',
+    payment_ref VARCHAR(150) NULL,
+    cashier_id INT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (order_id) REFERENCES orders(id) ON DELETE CASCADE,
+    FOREIGN KEY (cashier_id) REFERENCES staff_management(id) ON DELETE RESTRICT
+);
+
+CREATE TABLE transaction_voids (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    source_type ENUM('esewa','cashier') NOT NULL,
+    source_id INT NOT NULL,
+    reason VARCHAR(500) NOT NULL,
+    voided_by INT NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE KEY unique_void (source_type, source_id),
+    FOREIGN KEY (voided_by) REFERENCES users(id) ON DELETE RESTRICT
 );
 
 CREATE TABLE waiter_workspace (
