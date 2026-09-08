@@ -12,6 +12,7 @@ $current = basename($_SERVER['PHP_SELF']);
 
     <nav class="sidebar-nav">
         <a href="<?= BASE_URL ?>/<?= ltrim(staffDashboardPath(), '/') ?>" class="<?= $current === basename(staffDashboardPath()) ? 'active' : '' ?>">📋 Workspace</a>
+        <?php if (staffHasRole(['finance'])): ?><a href="<?= BASE_URL ?>/views/admin/menu_management.php" class="<?= $current === 'menu_management.php' ? 'active' : '' ?>">🍽️ Menu Management</a><?php endif; ?>
         <a href="<?= BASE_URL ?>/views/staff/directory.php" class="<?= $current === 'directory.php' ? 'active' : '' ?>">👥 Staff Directory</a>
         <a href="<?= BASE_URL ?>/views/staff/profile.php" class="<?= $current === 'profile.php' ? 'active' : '' ?>">⭐ My Reviews</a>
     </nav>
