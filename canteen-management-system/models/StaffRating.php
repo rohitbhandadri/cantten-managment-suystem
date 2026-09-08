@@ -61,6 +61,12 @@ class StaffRating {
         ];
     }
 
+    public function activeStaff() {
+        $stmt = $this->conn->prepare("SELECT id, staff_name, staff_role FROM staff_management WHERE is_active = 1 AND deleted_at IS NULL AND staff_status <> 'removed' ORDER BY staff_name");
+        $stmt->execute();
+        return $stmt->fetchAll(PDO::FETCH_ASSOC);
+    }
+
     public function listForStaff($staffId, $limit = 10) {
         $this->ensureTable();
         $stmt = $this->conn->prepare("SELECT sr.*, u.name AS customer_name FROM staff_ratings sr JOIN users u ON u.id = sr.customer_id WHERE sr.staff_id = ? ORDER BY sr.created_at DESC LIMIT ?");
