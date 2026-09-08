@@ -11,19 +11,23 @@ $error = '';
 $role = $_POST['role'] ?? 'customer';
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-    $email = trim($_POST['email'] ?? '');
-    $password = $_POST['password'] ?? '';
-    $result = $auth->login($email, $password, $role);
-    if ($result['success']) {
-        if ($result['role'] === 'admin') {
-            redirect('views/admin/dashboard.php');
-        }
-        if ($result['role'] === 'staff') {
-            redirect(staffDashboardPath());
-        }
-        redirect('views/customer/home.php');
+    if (!verifyCsrf()) {
+        $error = 'Your sign-in form expired. Please try again.';
     } else {
-        $error = $result['message'];
+        $email = trim($_POST['email'] ?? '');
+        $password = $_POST['password'] ?? '';
+        $result = $auth->login($email, $password, $role);
+        if ($result['success']) {
+            if ($result['role'] === 'admin') {
+                redirect('views/admin/dashboard.php');
+            }
+            if ($result['role'] === 'staff') {
+                redirect(staffDashboardPath());
+            }
+            redirect('views/customer/home.php');
+        } else {
+            $error = $result['message'];
+        }
     }
 }
 ?>
@@ -57,6 +61,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             <?php endif; ?>
 
             <form method="POST" action="login.php">
+                <?= csrfField() ?>
                 <input type="hidden" name="role" id="role-input" value="<?= e($role) ?>">
                 <label>Email</label>
                 <input type="email" name="email" placeholder="Enter your email" required value="<?= e($_POST['email'] ?? '') ?>">
