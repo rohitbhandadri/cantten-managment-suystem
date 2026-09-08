@@ -61,10 +61,11 @@ class Promo {
     }
 
     public function all() {
-        $stmt = $this->conn->query("SELECT p.*, u.name AS customer_name, u.email AS customer_email
-            FROM {$this->table} p
+        $stmt = $this->conn->prepare("SELECT p.*, u.name AS customer_name, u.email AS customer_email
+            FROM promo_claims p
             JOIN users u ON p.user_id = u.id
             ORDER BY p.claimed_at DESC");
+        $stmt->execute();
         return $stmt->fetchAll(PDO::FETCH_ASSOC);
     }
 }
