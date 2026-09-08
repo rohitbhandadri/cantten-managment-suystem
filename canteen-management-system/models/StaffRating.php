@@ -22,6 +22,7 @@ class StaffRating {
                 FOREIGN KEY (order_id) REFERENCES orders(id) ON DELETE SET NULL
             )
         ");
+        $this->conn->exec("ALTER TABLE staff_ratings MODIFY COLUMN customer_id INT NULL");
     }
 
     public function add($staffId, $customerId, $orderId, $rating, $comment = '') {
