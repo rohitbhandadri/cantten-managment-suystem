@@ -9,7 +9,7 @@ $db = $database->connect();
 $promo = new Promo($db);
 $promoClaim = $promo->findByUser($_SESSION['user_id']);
 
-if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['claim_offer'])) {
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['claim_offer']) && verifyCsrf()) {
     $promoClaim = $promo->claimForUser($_SESSION['user_id']);
 }
 ?>
@@ -37,6 +37,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['claim_offer'])) {
             <a href="<?= BASE_URL ?>/views/customer/checkout.php" class="btn-primary btn-block">Use Code at Checkout</a>
         <?php else: ?>
             <form method="POST">
+                <?= csrfField() ?>
                 <button type="submit" name="claim_offer" class="btn-accent">Claim My Promo Code</button>
             </form>
         <?php endif; ?>
