@@ -22,37 +22,43 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $imagePath = $existingItem['image'] ?? null;
         }
         if (isset($_FILES['image']) && $_FILES['image']['error'] !== UPLOAD_ERR_NO_FILE) {
-            if ($_FILES['image']['error'] !== UPLOAD_ERR_OK || $_FILES['image']['size'] > 5 * 1024 * 1024) {
-                die('Image upload failed. Please use an image smaller than 5 MB.');
+            if ($_FILES['image']['error'] !== UPLOAD_ERR_OK || !is_uploaded_file($_FILES['image']['tmp_name']) || $_FILES['image']['size'] > 5 * 1024 * 1024) {
+                flash('error', 'Image upload failed. Please use an image smaller than 5 MB.');
+                redirect('views/admin/menu_management.php');
             }
             $imageInfo = @getimagesize($_FILES['image']['tmp_name']);
             $allowedTypes = ['image/jpeg' => 'jpg', 'image/png' => 'png', 'image/webp' => 'webp', 'image/gif' => 'gif'];
             if (!$imageInfo || !isset($allowedTypes[$imageInfo['mime']])) {
-                die('Invalid image type. Use JPG, PNG, WEBP, or GIF.');
+                flash('error', 'Invalid image type. Use JPG, PNG, WEBP, or GIF.');
+                redirect('views/admin/menu_management.php');
             }
-            $safeName = preg_replace('/[^a-z0-9]+/i', '-', strtolower(trim($_POST['name'])));
-            $safeName = trim($safeName, '-') ?: 'menu-item';
-            $imagePath = $safeName . '-' . uniqid() . '.' . $allowedTypes[$imageInfo['mime']];
+            $imagePath = bin2hex(random_bytes(16)) . '.' . $allowedTypes[$imageInfo['mime']];
             $imageDirectory = __DIR__ . '/../../public/images';
             if (!is_dir($imageDirectory)) {
                 mkdir($imageDirectory, 0755, true);
             }
-            move_uploaded_file($_FILES['image']['tmp_name'], $imageDirectory . '/' . $imagePath);
+            if (!move_uploaded_file($_FILES['image']['tmp_name'], $imageDirectory . '/' . $imagePath)) {
+                flash('error', 'The image could not be stored.');
+                redirect('views/admin/menu_management.php');
+            }
         }
         $data = [
-            'category_id' => $_POST['category_id'] ?: null,
+            'category_id' => $_POST['category_id'] ?? null,
             'name' => trim($_POST['name']),
             'description' => trim($_POST['description']),
-            'price' => (float)$_POST['price'],
-            'current_stock' => (int)$_POST['current_stock'],
-            'reorder_level' => (int)$_POST['reorder_level'],
+            'price' => $_POST['price'] ?? null,
+            'current_stock' => $_POST['current_stock'] ?? null,
+            'reorder_level' => $_POST['reorder_level'] ?? null,
             'is_active' => isset($_POST['is_active']) ? 1 : 0,
             'image' => $imagePath,
         ];
         if (!empty($_POST['item_id'])) {
-            $menuController->update((int)$_POST['item_id'], $data);
+            $saved = $menuController->update($_POST['item_id'], $data);
         } else {
-            $menuController->create($data, $imagePath);
+            $saved = $menuController->create($data, $imagePath);
+        }
+        if ($saved === false) {
+            flash('error', 'Please provide valid menu details and an existing category.');
         }
         redirect('views/admin/menu_management.php');
     } elseif (isset($_POST['toggle_id'])) {
