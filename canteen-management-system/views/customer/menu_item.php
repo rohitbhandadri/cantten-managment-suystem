@@ -7,7 +7,7 @@ requireCustomer();
 $database = new Database();
 $db = $database->connect();
 $menuController = new MenuController($db);
-$item = $menuController->get((int)($_GET['id'] ?? 0));
+$item = $menuController->getActive($_GET['id'] ?? null);
 
 if (!$item) {
     redirect('views/customer/home.php');
