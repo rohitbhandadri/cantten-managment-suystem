@@ -18,6 +18,9 @@ $current = basename($_SERVER['PHP_SELF']);
     </nav>
 
     <div class="sidebar-footer">
-        <a href="<?= BASE_URL ?>/logout.php" class="logout-button">🚪 Logout</a>
+        <form method="POST" action="<?= BASE_URL ?>/logout.php">
+            <?= csrfField('logout_csrf') ?>
+            <button type="submit" class="logout-button">🚪 Logout</button>
+        </form>
     </div>
 </aside>
