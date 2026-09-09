@@ -44,6 +44,12 @@ class Order {
         return $stmt->fetch(PDO::FETCH_ASSOC);
     }
 
+    public function findForUser($id, $userId) {
+        $stmt = $this->conn->prepare("SELECT * FROM {$this->table} WHERE id = ? AND user_id = ? LIMIT 1");
+        $stmt->execute([(int)$id, (int)$userId]);
+        return $stmt->fetch(PDO::FETCH_ASSOC);
+    }
+
     public function findByPublicReviewToken($token) {
         $stmt = $this->conn->prepare("SELECT * FROM orders WHERE public_review_token = ? LIMIT 1");
         $stmt->execute([trim((string)$token)]);
