@@ -54,9 +54,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $message = 'An account with this email already exists. Only customer accounts can be promoted to staff.';
             $messageType = 'error';
         } else {
-            $userModel->create($name, $email, $password, $role, $phone, (float)$salary, $status, $designation, $shift);
-            flash('success', ucfirst($role) . ' account created successfully.');
-            redirect('views/admin/account_management.php');
+            $created = $userModel->create($name, $email, $password, $role, $phone, (float)$salary, $status, $designation, $shift);
+            if ($created === false) {
+                $message = 'The account could not be created. Check the submitted details.';
+                $messageType = 'error';
+            } else {
+                flash('success', ucfirst($role) . ' account created successfully.');
+                redirect('views/admin/account_management.php');
+            }
         }
     }
 }
