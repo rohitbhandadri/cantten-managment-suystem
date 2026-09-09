@@ -7,7 +7,7 @@ requireCustomer();
 $database = new Database();
 $db = $database->connect();
 $orderController = new OrderController($db);
-$order = $orderController->getOrder((int)($_GET['id'] ?? 0));
+$order = $orderController->getOrder($_GET['id'] ?? null);
 
 if (!$order || $order['user_id'] != $_SESSION['user_id']) {
     redirect('views/customer/orders.php');
