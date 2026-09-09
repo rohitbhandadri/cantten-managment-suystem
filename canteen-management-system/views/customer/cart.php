@@ -14,20 +14,38 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if (!verifyCsrf()) {
         flash('error', 'Your cart form expired. Please try again.');
     } elseif (isset($_POST['add_to_cart'])) {
-        $item = $menuController->get((int)$_POST['item_id']);
-        if ($item) {
-            $cart->add($item['id'], (int)$_POST['qty'], $item['name'], $item['price']);
+        $itemId = Validator::menuItemId($_POST['item_id'] ?? null);
+        $item = $itemId !== false ? $menuController->getActive($itemId) : null;
+        if ($item && (int)$item['is_active'] === 1) {
+            $cart->add($item['id'], $_POST['qty'] ?? null);
         }
     } elseif (isset($_POST['update_qty'])) {
-        $cart->updateQty((int)$_POST['item_id'], (int)$_POST['update_qty']);
+        $cart->updateQty($_POST['item_id'] ?? null, $_POST['update_qty'] ?? null);
     } elseif (isset($_POST['remove_item'])) {
-        $cart->remove((int)$_POST['item_id']);
+        $cart->remove($_POST['item_id'] ?? null);
     }
     redirect('views/customer/cart.php');
 }
 
-$items = $cart->items();
-$subtotal = $cart->subtotal();
+$items = [];
+foreach ($cart->items() as $cartItem) {
+    $menuItem = $menuController->getActive($cartItem['id'] ?? null);
+    if (!$menuItem) {
+        $cart->remove($cartItem['id'] ?? null);
+        continue;
+    }
+    $items[] = [
+        'id' => (int)$menuItem['id'],
+        'name' => $menuItem['name'],
+        'price' => (float)$menuItem['price'],
+        'qty' => (int)$cartItem['qty'],
+        'image' => $menuItem['image'],
+    ];
+}
+$subtotal = 0;
+foreach ($items as $item) {
+    $subtotal += $item['price'] * $item['qty'];
+}
 $tax = round($subtotal * 0.10, 2);
 $serviceFee = !empty($items) ? 1.00 : 0;
 $total = $subtotal + $tax + $serviceFee;
