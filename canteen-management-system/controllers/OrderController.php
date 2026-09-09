@@ -2,6 +2,7 @@
 require_once __DIR__ . '/../models/Order.php';
 require_once __DIR__ . '/../models/MenuItem.php';
 require_once __DIR__ . '/../models/Ingredient.php';
+require_once __DIR__ . '/../models/Promo.php';
 
 class OrderController {
     private $conn;
@@ -9,6 +10,7 @@ class OrderController {
     private $orderItemModel;
     private $menuItemModel;
     private $ingredientModel;
+    private $promoModel;
 
     public function __construct($db) {
         $this->conn = $db;
@@ -16,10 +18,30 @@ class OrderController {
         $this->orderItemModel = new OrderItem($db);
         $this->menuItemModel = new MenuItem($db);
         $this->ingredientModel = new Ingredient($db);
+        $this->promoModel = new Promo($db);
     }
 
     public function placeOrder($userId, $cartItems, $orderType = 'takeaway', $instructions = '', $discountAmount = 0, $promoCode = null, $tableNumber = null) {
         requireCustomer();
+        $userId = (int)($_SESSION['user_id'] ?? 0);
+        $orderType = Validator::orderType($orderType);
+        $instructions = Validator::description($instructions);
+        if ($orderType === false || $instructions === false || !is_array($cartItems)) {
+            return ['success' => false, 'message' => 'Invalid order details.'];
+        }
+        $tableNumber = trim((string)$tableNumber);
+        if ($orderType === 'dine-in') {
+            if ($tableNumber === '' || strlen($tableNumber) > 20) {
+                return ['success' => false, 'message' => 'Select a valid dining table.'];
+            }
+            $tableStmt = $this->conn->prepare('SELECT id FROM tables_ WHERE table_number = ? AND is_active = 1 LIMIT 1');
+            $tableStmt->execute([$tableNumber]);
+            if (!$tableStmt->fetchColumn()) {
+                return ['success' => false, 'message' => 'The selected table is unavailable.'];
+            }
+        } else {
+            $tableNumber = null;
+        }
         if (empty($cartItems)) {
             return ['success' => false, 'message' => 'Cart is empty.'];
         }
@@ -28,9 +50,9 @@ class OrderController {
             $validatedItems = [];
             $subtotal = 0;
             foreach ($cartItems as $item) {
-                $itemId = (int)($item['id'] ?? 0);
-                $quantity = (int)($item['qty'] ?? 0);
-                if ($itemId <= 0 || $quantity <= 0) {
+                $itemId = Validator::menuItemId($item['id'] ?? null);
+                $quantity = Validator::quantity($item['qty'] ?? null);
+                if ($itemId === false || $quantity === false) {
                     throw new RuntimeException('Invalid item quantity.');
                 }
 
@@ -55,7 +77,17 @@ class OrderController {
                 $subtotal += (float)$menuItem['price'] * $quantity;
             }
 
-            $discountAmount = min(max(0, (float)$discountAmount), $subtotal);
+            $discountAmount = 0;
+            $promoCode = strtoupper(trim((string)$promoCode));
+            if ($promoCode !== '') {
+                $promo = $this->promoModel->findValidForUser($userId, $promoCode);
+                if (!$promo) {
+                    throw new RuntimeException('The promo code is invalid or has already been used.');
+                }
+                $discountAmount = round($subtotal * ((int)$promo['discount_percent'] / 100), 2);
+            } else {
+                $promoCode = null;
+            }
             $taxableSubtotal = $subtotal - $discountAmount;
             $tax = round($taxableSubtotal * 0.10, 2);
             $serviceFee = 1.00;
@@ -76,11 +108,14 @@ class OrderController {
 
     public function getOrder($id) {
         requireCustomer();
-        return $this->orderModel->find($id);
+        return $this->orderModel->findForUser($id, (int)$_SESSION['user_id']);
     }
 
     public function getItems($orderId) {
         requireCustomer();
+        if (!$this->orderModel->findForUser($orderId, (int)$_SESSION['user_id'])) {
+            return [];
+        }
         return $this->orderItemModel->findByOrder($orderId);
     }
 
