@@ -8,17 +8,18 @@ $database = new Database();
 $db = $database->connect();
 $reservationController = new ReservationController($db);
 
-$date = $_GET['date'] ?? date('Y-m-d');
-$time = $_GET['time'] ?? '12:00';
-$guests = $_GET['guests'] ?? 2;
+$date = Validator::date($_GET['date'] ?? date('Y-m-d')) ?: date('Y-m-d');
+$time = Validator::time($_GET['time'] ?? '12:00') ?: '12:00:00';
+$guests = Validator::integer($_GET['guests'] ?? 2, 1, 8) ?: 2;
 $message = '';
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && verifyCsrf()) {
-    $date = $_POST['date'];
-    $time = $_POST['time'];
-    $guests = (int)$_POST['guests'];
-    if (isset($_POST['confirm']) && !empty($_POST['table_id'])) {
-        if ($reservationController->book($_SESSION['user_id'], (int)$_POST['table_id'], $date, $time, $guests)) {
+    $date = Validator::date($_POST['date'] ?? null);
+    $time = Validator::time($_POST['time'] ?? null);
+    $guests = Validator::integer($_POST['guests'] ?? null, 1, 8);
+    $tableId = Validator::tableId($_POST['table_id'] ?? null);
+    if (isset($_POST['confirm']) && $date !== false && $time !== false && $guests !== false && $tableId !== false) {
+        if ($reservationController->book($_SESSION['user_id'], $tableId, $date, $time, $guests)) {
             flash('success', 'Table reserved successfully!');
             redirect('views/customer/profile.php');
         }
@@ -26,7 +27,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && verifyCsrf()) {
     }
 }
 
-$tables = $reservationController->availableTables($date, $time . ':00');
+$tables = $reservationController->availableTables($date, $time);
 $myReservations = $reservationController->myReservations($_SESSION['user_id']);
 $myConfirmedTableIds = [];
 foreach ($myReservations as $reservation) {
@@ -58,7 +59,7 @@ foreach ($myReservations as $reservation) {
                 <input type="date" name="date" value="<?= e($date) ?>" onchange="document.getElementById('filter-form').submit()">
 
                 <label>Time</label>
-                <input type="time" name="time" value="<?= e($time) ?>" onchange="document.getElementById('filter-form').submit()">
+                <input type="time" name="time" value="<?= e(substr($time, 0, 5)) ?>" onchange="document.getElementById('filter-form').submit()">
 
                 <label>Guests</label>
                 <select name="guests" onchange="document.getElementById('filter-form').submit()">
