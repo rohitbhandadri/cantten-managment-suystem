@@ -18,6 +18,9 @@ $current = basename($_SERVER['PHP_SELF']);
             🛒 <?php if ($cartCount > 0): ?><span class="badge"><?= $cartCount ?></span><?php endif; ?>
         </a>
         <a href="<?= BASE_URL ?>/views/customer/profile.php" class="avatar">👤</a>
-        <a href="<?= BASE_URL ?>/logout.php" class="logout-button">Logout</a>
+        <form method="POST" action="<?= BASE_URL ?>/logout.php">
+            <?= csrfField('logout_csrf') ?>
+            <button type="submit" class="logout-button">Logout</button>
+        </form>
     </div>
 </header>
