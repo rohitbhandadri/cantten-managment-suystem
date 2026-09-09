@@ -54,13 +54,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $response['message'] = 'A staff member with this email already exists.';
         } else {
             $createdStaffId = $userModel->create($name, $email, $password, 'staff', $phone, (float)$salary, $status, $role, $shift, $department);
-            $createdUser = $userModel->findByEmail($email);
-            $response = [
-                'success' => true,
-                'staff_id' => $createdStaffId,
-                'username' => $createdUser['username'] ?? $email,
-                'message' => 'Staff member added successfully. Login ID: ' . ($createdUser['username'] ?? $email) . '.',
-            ];
+            $createdUser = $createdStaffId ? $userModel->findByEmail($email) : null;
+            if ($createdStaffId === false || !$createdUser) {
+                $response['message'] = 'The staff account could not be created. Check the submitted details.';
+            } else {
+                $response = [
+                    'success' => true,
+                    'staff_id' => $createdStaffId,
+                    'username' => $createdUser['username'] ?? $email,
+                    'message' => 'Staff member added successfully. Login ID: ' . ($createdUser['username'] ?? $email) . '.',
+                ];
+            }
         }
 
         if ($isAjaxRequest) {
