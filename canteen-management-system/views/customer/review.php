@@ -23,6 +23,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $order) {
         $ratings = $_POST['rating'] ?? [];
         $comments = $_POST['comment'] ?? [];
         $saved = 0;
+        if (!is_array($ratings) || !is_array($comments)) {
+            $ratings = [];
+            $comments = [];
+        }
         foreach ($ratings as $staffId => $rating) {
             if ($rating === '') {
                 continue;
@@ -36,12 +40,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $order) {
         $message = $saved ? $saved . ' review(s) saved. Thank you for your feedback.' : 'No staff member was rated. Thank you for visiting CanteenPro.';
     }
 }
-if ($_SERVER['REQUEST_METHOD'] === 'GET' && $order && !$decision && ($_GET['mode'] ?? '') === 'skip') {
-    $review->skip($order['id']);
-    $decision = 'skipped';
-    $message = 'Your review was skipped. Thank you for visiting CanteenPro.';
-}
-
 $staffMembers = $order ? $review->staffForOrder($order['id']) : [];
 $showForm = $order && !$decision && (($_GET['mode'] ?? '') === 'rate');
 ?>
