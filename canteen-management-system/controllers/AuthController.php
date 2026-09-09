@@ -9,6 +9,11 @@ class AuthController {
     }
 
     public function login($email, $password, $expectedRole) {
+        $email = trim((string)$email);
+        $expectedRole = Validator::role($expectedRole);
+        if ($expectedRole === false || $email === '' || strlen($email) > 254 || strlen((string)$password) > 128) {
+            return ['success' => false, 'message' => 'Invalid email or password.'];
+        }
         if (!$this->userModel->loginAllowed($email)) {
             return ['success' => false, 'message' => 'Too many failed attempts. Please try again in 15 minutes.'];
         }
@@ -47,6 +52,13 @@ class AuthController {
     }
 
     public function register($name, $email, $password, $phone) {
+        $name = Validator::name($name);
+        $email = Validator::email($email);
+        $password = Validator::password($password);
+        $phone = Validator::phone($phone);
+        if ($name === false || $email === false || $password === false || $phone === false) {
+            return ['success' => false, 'message' => 'Please provide valid registration details.'];
+        }
         if ($this->userModel->findByEmail($email)) {
             return ['success' => false, 'message' => 'Email already registered.'];
         }
