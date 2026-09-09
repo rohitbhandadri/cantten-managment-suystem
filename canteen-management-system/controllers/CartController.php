@@ -6,29 +6,42 @@ class CartController {
         }
     }
 
-    public function add($itemId, $qty, $name, $price, $image = '') {
-        $itemId = (int)$itemId;
-        $qty = max(1, (int)$qty);
+    public function add($itemId, $qty, $name = '', $price = 0, $image = '') {
+        $itemId = Validator::menuItemId($itemId);
+        $qty = Validator::quantity($qty);
+        if ($itemId === false || $qty === false) {
+            return false;
+        }
         if (isset($_SESSION['cart'][$itemId])) {
             $_SESSION['cart'][$itemId]['qty'] += $qty;
         } else {
             $_SESSION['cart'][$itemId] = [
-                'id' => $itemId, 'name' => $name, 'price' => $price, 'qty' => $qty, 'image' => $image
+                'id' => $itemId, 'qty' => $qty
             ];
         }
+        $_SESSION['cart'][$itemId]['qty'] = min((int)$_SESSION['cart'][$itemId]['qty'], 1000);
+        return true;
     }
 
     public function updateQty($itemId, $qty) {
-        $itemId = (int)$itemId;
-        if ($qty <= 0) {
+        $itemId = Validator::menuItemId($itemId);
+        $qty = Validator::quantity($qty);
+        if ($itemId === false) {
+            return false;
+        }
+        if ($qty === false) {
             unset($_SESSION['cart'][$itemId]);
         } elseif (isset($_SESSION['cart'][$itemId])) {
-            $_SESSION['cart'][$itemId]['qty'] = (int)$qty;
+            $_SESSION['cart'][$itemId]['qty'] = $qty;
         }
+        return true;
     }
 
     public function remove($itemId) {
-        unset($_SESSION['cart'][(int)$itemId]);
+        $itemId = Validator::menuItemId($itemId);
+        if ($itemId !== false) {
+            unset($_SESSION['cart'][$itemId]);
+        }
     }
 
     public function items() {
@@ -42,7 +55,7 @@ class CartController {
     public function subtotal() {
         $sum = 0;
         foreach ($_SESSION['cart'] as $item) {
-            $sum += $item['price'] * $item['qty'];
+            $sum += (float)($item['price'] ?? 0) * (int)($item['qty'] ?? 0);
         }
         return $sum;
     }
