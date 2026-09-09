@@ -17,8 +17,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $phone = trim($_POST['phone'] ?? '');
         $password = $_POST['password'] ?? '';
 
-        if ($name && $email && $password) {
-            $result = $auth->register($name, $email, $password, $phone);
+        $validName = Validator::name($name);
+        $validEmail = Validator::email($email);
+        $validPhone = Validator::phone($phone);
+        $validPassword = Validator::password($password);
+        if ($validName !== false && $validEmail !== false && $validPhone !== false && $validPassword !== false) {
+            $result = $auth->register($validName, $validEmail, $validPassword, $validPhone);
             if ($result['success']) {
                 flash('success', 'Account created! Please sign in.');
                 redirect('login.php');
@@ -26,7 +30,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $error = $result['message'];
             }
         } else {
-            $error = 'Please fill in all required fields.';
+            $error = 'Enter a valid name, email, phone number, and password of at least 8 characters.';
         }
     }
 }
