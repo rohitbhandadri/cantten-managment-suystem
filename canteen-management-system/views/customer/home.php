@@ -10,10 +10,10 @@ $database = new Database();
 $db = $database->connect();
 $tableQrCode = new TableQrCode($db);
 $qrTable = $tableQrCode->resolve($_GET['table'] ?? '', $_GET['qr'] ?? '');
+requireCustomer();
 if ($qrTable) {
     $_SESSION['order_table_number'] = $qrTable;
 }
-requireCustomer();
 
 $menuController = new MenuController($db);
 $items = $menuController->listActive();
