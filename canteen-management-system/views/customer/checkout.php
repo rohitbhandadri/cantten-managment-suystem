@@ -5,6 +5,7 @@ require_once __DIR__ . '/../../controllers/CartController.php';
 require_once __DIR__ . '/../../controllers/OrderController.php';
 require_once __DIR__ . '/../../controllers/PaymentController.php';
 require_once __DIR__ . '/../../models/Promo.php';
+require_once __DIR__ . '/../../controllers/MenuController.php';
 requireCustomer();
 
 $database = new Database();
@@ -13,13 +14,29 @@ $cart = new CartController();
 $orderController = new OrderController($db);
 $paymentController = new PaymentController($db);
 $promo = new Promo($db);
+$menuController = new MenuController($db);
 
-$items = $cart->items();
+$items = [];
+foreach ($cart->items() as $cartItem) {
+    $menuItem = $menuController->getActive($cartItem['id'] ?? null);
+    if ($menuItem) {
+        $items[] = [
+            'id' => (int)$menuItem['id'],
+            'name' => $menuItem['name'],
+            'price' => (float)$menuItem['price'],
+            'qty' => (int)$cartItem['qty'],
+            'image' => $menuItem['image'],
+        ];
+    }
+}
 if (empty($items)) {
     redirect('views/customer/cart.php');
 }
 
-$subtotal = $cart->subtotal();
+$subtotal = 0;
+foreach ($items as $item) {
+    $subtotal += $item['price'] * $item['qty'];
+}
 $promoCode = trim($_SESSION['checkout_promo_code'] ?? '');
 $defaultTableNumber = trim($_SESSION['order_table_number'] ?? '');
 $promoClaim = $promoCode ? $promo->findValidForUser($_SESSION['user_id'], $promoCode) : null;
@@ -35,20 +52,20 @@ $error = '';
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && verifyCsrf()) {
     if (isset($_POST['place_order'])) {
         // Step 1: create order + payment record, "send OTP"
-        $method = $_POST['method'] ?? 'esewa';
-        $orderType = $_POST['order_type'] ?? 'takeaway';
+        $method = Validator::paymentMethod($_POST['method'] ?? '');
+        $orderType = Validator::orderType($_POST['order_type'] ?? '');
         $tableNumber = trim($_POST['table_number'] ?? '');
         if ($defaultTableNumber !== '') {
             $tableNumber = $defaultTableNumber;
         }
-        if (!in_array($orderType, ['takeaway', 'dine-in'], true)) {
-            $orderType = 'takeaway';
-        }
-        if ($orderType === 'takeaway') {
+        if ($method === false || $orderType === false) {
+            $error = 'Select a valid payment method and order type.';
+            $step = 'select';
+        } elseif ($orderType === 'takeaway') {
             $tableNumber = null;
         }
         $promoCode = strtoupper(trim($_POST['promo_code'] ?? ''));
-        $promoClaim = $promoCode ? $promo->findValidForUser($_SESSION['user_id'], $promoCode) : null;
+        $promoClaim = $error === '' && $promoCode ? $promo->findValidForUser($_SESSION['user_id'], $promoCode) : null;
         if ($promoCode && !$promoClaim) {
             $error = 'That promo code is invalid, expired, or has already been used.';
             $step = 'select';
@@ -59,17 +76,29 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && verifyCsrf()) {
         }
         if (isset($result) && $result['success']) {
             $paymentId = $paymentController->initiate($result['order_id'], $method, $result['total']);
-            $_SESSION['checkout_order_id'] = $result['order_id'];
-            $_SESSION['checkout_payment_id'] = $paymentId;
-            $_SESSION['checkout_otp'] = strval(random_int(1000, 9999)); // simulated OTP
-            $step = 'verify';
+            if ($paymentId === false) {
+                $error = 'A payment is already pending for this order. Please refresh and try again.';
+                $step = 'select';
+            } else {
+                $_SESSION['checkout_order_id'] = $result['order_id'];
+                $_SESSION['checkout_payment_id'] = $paymentId;
+                $_SESSION['checkout_otp'] = strval(random_int(1000, 9999));
+                $_SESSION['checkout_otp_expires_at'] = time() + 300;
+                $_SESSION['checkout_otp_attempts'] = 0;
+                $step = 'verify';
+            }
         } elseif (isset($result)) {
             $error = $result['message'];
         }
     } elseif (isset($_POST['verify_otp'])) {
         // Step 2: verify OTP and confirm payment
         $entered = trim($_POST['otp'] ?? '');
-        if ($entered === $_SESSION['checkout_otp']) {
+        $otpValid = preg_match('/\A\d{4}\z/', $entered)
+            && isset($_SESSION['checkout_otp'], $_SESSION['checkout_otp_expires_at'])
+            && time() <= (int)$_SESSION['checkout_otp_expires_at']
+            && (int)($_SESSION['checkout_otp_attempts'] ?? 0) < 5
+            && hash_equals((string)$_SESSION['checkout_otp'], $entered);
+        if ($otpValid) {
             $paymentReference = $paymentController->confirm($_SESSION['checkout_payment_id'], $_SESSION['checkout_order_id']);
             if (!$paymentReference) {
                 $error = 'This payment session is invalid or has already been completed.';
@@ -77,12 +106,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && verifyCsrf()) {
             } else {
                 $orderId = $_SESSION['checkout_order_id'];
                 $cart->clear();
-                unset($_SESSION['checkout_order_id'], $_SESSION['checkout_payment_id'], $_SESSION['checkout_otp'], $_SESSION['checkout_promo_code']);
+                unset($_SESSION['checkout_order_id'], $_SESSION['checkout_payment_id'], $_SESSION['checkout_otp'], $_SESSION['checkout_otp_expires_at'], $_SESSION['checkout_otp_attempts'], $_SESSION['checkout_promo_code']);
 
                 redirect('views/customer/order_tracking.php?id=' . $orderId);
             }
         } else {
-            $error = 'Incorrect OTP. Please try again.';
+            $_SESSION['checkout_otp_attempts'] = (int)($_SESSION['checkout_otp_attempts'] ?? 0) + 1;
+            if ($_SESSION['checkout_otp_attempts'] >= 5 || empty($_SESSION['checkout_otp_expires_at']) || time() > (int)$_SESSION['checkout_otp_expires_at']) {
+                unset($_SESSION['checkout_otp'], $_SESSION['checkout_otp_expires_at'], $_SESSION['checkout_otp_attempts']);
+                $error = 'This verification code has expired. Please start checkout again.';
+            } else {
+                $error = 'Incorrect OTP. Please try again.';
+            }
             $step = 'verify';
         }
     }
@@ -165,8 +200,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && verifyCsrf()) {
                         <h3>🛡 Verification</h3>
                         <span class="mini-tag">Secure payment</span>
                     </div>
-                    <p class="muted small otp-text">Enter the 4-digit OTP sent to your registered mobile number to confirm payment.
-                    <br><em>(Demo OTP: <?= e($_SESSION['checkout_otp']) ?>)</em></p>
+                    <p class="muted small otp-text">Enter the 4-digit OTP sent to your registered mobile number to confirm payment.</p>
 
                     <div class="form-group">
                         <input type="text" name="otp" maxlength="4" placeholder="••••" class="otp-input" required>
