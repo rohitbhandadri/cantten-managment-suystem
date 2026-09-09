@@ -13,12 +13,20 @@ class PaymentController {
 
     public function initiate($orderId, $method, $amount) {
         requireCustomer();
+        $orderId = Validator::positiveInteger($orderId);
+        if ($orderId === false || !$this->orderModel->findForUser($orderId, (int)$_SESSION['user_id'])) {
+            return false;
+        }
         return $this->paymentModel->create($orderId, $method, $amount);
     }
 
     // Simulates OTP-verified payment confirmation (as in the base paper's OTP verification flow)
     public function confirm($paymentId, $orderId) {
         requireCustomer();
+        $order = $this->orderModel->findForUser($orderId, (int)$_SESSION['user_id']);
+        if (!$order || !$this->paymentModel->findByOrderForUser($orderId, (int)$_SESSION['user_id'])) {
+            return false;
+        }
         $ref = $this->paymentModel->markSuccess($paymentId, $orderId);
         if (!$ref) {
             return false;
@@ -29,6 +37,6 @@ class PaymentController {
 
     public function getForOrder($orderId) {
         requireCustomer();
-        return $this->paymentModel->findByOrder($orderId);
+        return $this->paymentModel->findByOrderForUser($orderId, (int)$_SESSION['user_id']);
     }
 }
