@@ -200,6 +200,25 @@ class User {
     }
 
     public function create($name, $email, $password, $role = 'customer', $phone = null, $salary = 0, $status = 'on_duty', $designation = 'Service Staff', $shift = 'Morning', $department = 'Operations') {
+        $name = Validator::name($name);
+        $email = Validator::email($email);
+        $password = Validator::password($password);
+        $phone = Validator::phone($phone);
+        $salary = Validator::price($salary);
+        $roles = ['customer', 'admin', 'staff'];
+        $designations = ['Manager', 'Chef', 'Cook', 'Waiter', 'Cashier', 'Inventory Manager', 'Finance', 'Cleaner', 'Service Staff'];
+        if ($name === false || $email === false || $password === false || $phone === false || $salary === false || !in_array($role, $roles, true)) {
+            return false;
+        }
+        if ($this->findByEmail($email)) {
+            return false;
+        }
+        if (!in_array($status, ['on_duty', 'on_leave'], true)) {
+            $status = 'on_duty';
+        }
+        if (!in_array($designation, $designations, true) || !in_array($shift, ['Morning', 'Evening', 'Night'], true) || !in_array($department, ['Operations', 'Inventory', 'Finance'], true)) {
+            return false;
+        }
         $hash = password_hash($password, PASSWORD_DEFAULT);
 
         if ($role === 'staff') {
@@ -244,7 +263,12 @@ class User {
             return false;
         }
 
-        $status = in_array($status, ['on_duty', 'on_leave'], true) ? $status : 'on_duty';
+        $password = Validator::password($password);
+        $salary = Validator::price($salary);
+        $phone = Validator::phone($phone);
+        if ($password === false || $salary === false || $phone === false || !in_array($status, ['on_duty', 'on_leave'], true) || !in_array($designation, ['Manager', 'Chef', 'Cook', 'Waiter', 'Cashier', 'Inventory Manager', 'Finance', 'Cleaner', 'Service Staff'], true) || !in_array($shift, ['Morning', 'Evening', 'Night'], true)) {
+            return false;
+        }
         $startedTransaction = !$this->conn->inTransaction();
         if ($startedTransaction) {
             $this->conn->beginTransaction();
@@ -271,13 +295,27 @@ class User {
     }
 
     public function updateStaff($id, $name, $email, $salary, $role, $phone, $shift, $status, $department = 'Operations') {
+        $id = Validator::positiveInteger($id);
+        $name = Validator::name($name);
+        $email = Validator::email($email);
+        $salary = Validator::price($salary);
+        $phone = Validator::phone($phone);
+        $allowedRoles = ['Manager', 'Chef', 'Cook', 'Waiter', 'Cashier', 'Inventory Manager', 'Finance', 'Cleaner', 'Service Staff'];
         $allowedStatus = ['on_duty', 'on_leave', 'removed'];
+        if ($id === false || $name === false || $email === false || $salary === false || $phone === false || !in_array($role, $allowedRoles, true) || !in_array($shift, ['Morning', 'Evening', 'Night'], true) || !in_array($department, ['Operations', 'Inventory', 'Finance'], true)) {
+            return false;
+        }
         if (!in_array($status, $allowedStatus, true)) {
             $status = 'on_duty';
         }
 
         $existing = $this->getStaffById($id);
         if (!$existing) {
+            return false;
+        }
+        $emailStmt = $this->conn->prepare('SELECT id FROM users WHERE email = ? AND id <> ? LIMIT 1');
+        $emailStmt->execute([$email, $this->staffUserId($existing['staff_email'])]);
+        if ($emailStmt->fetchColumn()) {
             return false;
         }
 
@@ -304,6 +342,12 @@ class User {
             }
             throw $exception;
         }
+    }
+
+    private function staffUserId($email) {
+        $stmt = $this->conn->prepare('SELECT id FROM users WHERE email = ? AND role = \'staff\' LIMIT 1');
+        $stmt->execute([$email]);
+        return (int)$stmt->fetchColumn();
     }
 
     public function updateLastLogin($id) {
