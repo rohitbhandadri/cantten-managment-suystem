@@ -14,13 +14,20 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         redirect('views/admin/inventory.php');
     }
     if (isset($_POST['reorder_item_id'])) {
-        $admin->autoReorder((int)$_POST['reorder_item_id']);
+        $itemId = Validator::menuItemId($_POST['reorder_item_id']);
+        if ($itemId !== false) {
+            $admin->autoReorder($itemId);
+        }
         redirect('views/admin/inventory.php');
     }
 
     if (isset($_POST['adjust_item_id'], $_POST['adjust_qty'])) {
-        $itemId = (int)$_POST['adjust_item_id'];
-        $qty = (int)$_POST['adjust_qty'];
+        $itemId = Validator::menuItemId($_POST['adjust_item_id']);
+        $qty = Validator::signedInteger($_POST['adjust_qty']);
+        if ($itemId === false || $qty === false) {
+            flash('error', 'Enter a valid inventory item and adjustment quantity.');
+            redirect('views/admin/inventory.php');
+        }
         $item = $db->prepare("SELECT current_stock, reorder_level FROM menu_items WHERE id = ?");
         $item->execute([$itemId]);
         $itemData = $item->fetch(PDO::FETCH_ASSOC);
@@ -47,8 +54,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
 
     if (isset($_POST['reorder_level_item_id'], $_POST['reorder_level'])) {
-        $itemId = (int)$_POST['reorder_level_item_id'];
-        $level = max((int)$_POST['reorder_level'], 0);
+        $itemId = Validator::menuItemId($_POST['reorder_level_item_id']);
+        $level = Validator::stock($_POST['reorder_level']);
+        if ($itemId === false || $level === false) {
+            flash('error', 'Enter a valid reorder level.');
+            redirect('views/admin/inventory.php');
+        }
         $db->prepare("UPDATE menu_items SET reorder_level = ? WHERE id = ?")->execute([$level, $itemId]);
         redirect('views/admin/inventory.php');
     }
