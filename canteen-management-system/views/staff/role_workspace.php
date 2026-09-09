@@ -4,6 +4,7 @@ require_once __DIR__ . '/../../config/database.php';
 require_once __DIR__ . '/../../models/StaffWorkspace.php';
 require_once __DIR__ . '/../../models/Ingredient.php';
 require_once __DIR__ . '/../../controllers/EsewaController.php';
+requireStaff();
 
 $database = new Database();
 $db = $database->connect();
@@ -31,7 +32,10 @@ $message = '';
 $error = $_SESSION['payment_error'] ?? '';
 $reviewLink = '';
 unset($_SESSION['payment_error']);
-$role = normalizeStaffRole($workspaceRole);
+$role = normalizeStaffRole($staff['staff_role'] ?? '');
+if (!in_array($role, ['manager', 'admin', 'cashier', 'cook', 'waiter', 'inventory', 'finance'], true)) {
+    redirect('views/staff/dashboard.php');
+}
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if (!hash_equals($csrfToken, (string)($_POST['csrf_token'] ?? ''))) {
